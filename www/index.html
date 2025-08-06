@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Glimmer Launcher</title>
+    <script src="capacitor.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=MedievalSharp&family=Inter:wght@400;500;700&display=swap');
+        :root {
+            --theme-color: #00de7a;
+            --body-bg-color: #202020;
+            --container-bg-color: #363636cf;
+            --font-color: #f8f8f8;
+            --input-bg-color: #404040;
+            --input-border-color: #505050;
+        }
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: var(--body-bg-color); color: var(--font-color); display: flex; justify-content: center; align-items: center; font-family: 'Inter', sans-serif; }
+        .launcher-container { display: flex; flex-direction: column; align-items: center; gap: 25px; padding: 40px; background: var(--container-bg-color); backdrop-filter: blur(8px); border-radius: 20px; box-shadow: 0 0 40px rgba(0, 222, 122, 0.15); border: 1px solid rgba(0, 222, 122, 0.2); }
+        @keyframes glimmer-effect { 0%, 100% { text-shadow: 0 0 5px var(--theme-color), 0 0 10px var(--theme-color), 0 0 15px #fff, 0 0 20px var(--theme-color); } 50% { text-shadow: 0 0 10px var(--theme-color), 0 0 20px var(--theme-color), 0 0 30px #fff, 0 0 40px var(--theme-color); } }
+        .title { font-family: 'MedievalSharp', cursive; font-size: 52px; color: var(--theme-color); animation: glimmer-effect 4s ease-in-out infinite; margin-bottom: 10px; }
+        .settings-group { display: flex; flex-direction: column; gap: 18px; width: 100%; }
+        .setting-item { display: flex; justify-content: space-between; align-items: center; width: 300px; }
+        label { font-size: 18px; }
+        select { background: var(--input-bg-color); color: var(--font-color); border: 1px solid var(--input-border-color); border-radius: 8px; padding: 8px 12px; font-family: 'Inter', sans-serif; font-size: 16px; }
+        .play-button { font-family: 'Inter', sans-serif; font-weight: 700; font-size: 20px; padding: 12px 40px; border: none; border-radius: 10px; background: var(--theme-color); color: var(--body-bg-color); cursor: pointer; transition: all 0.2s ease-in-out; box-shadow: 0 0 20px rgba(0, 222, 122, 0.4); }
+        .play-button:hover { transform: scale(1.05); box-shadow: 0 0 30px rgba(0, 222, 122, 0.7); }
+        .switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--input-bg-color); transition: .4s; border-radius: 28px; border: 1px solid var(--input-border-color); }
+        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 3px; background-color: #f8f8f8; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--theme-color); }
+        input:checked + .slider:before { transform: translateX(20px); }
+    </style>
+</head>
+<body>
+    <div class="launcher-container">
+        <h1 class="title">Glimmer</h1>
+        <div class="settings-group">
+            <div class="setting-item">
+                <label for="server-select">Server:</label>
+                <select id="server-select">
+                    <option value="1">Server 1</option>
+                    <option value="2">Server 2</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                <label>Keep Screen On:</label>
+                <label class="switch">
+                    <input type="checkbox" id="keep-awake-toggle" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="setting-item">
+                <label>Idle Alert:</label>
+                <label class="switch">
+                    <input type="checkbox" id="idle-alert-toggle" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="setting-item">
+                <label>PM Alert:</label>
+                <label class="switch">
+                    <input type="checkbox" id="pm-alert-toggle" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="setting-item">
+                <label>Low Health Alert:</label>
+                <label class="switch">
+                    <input type="checkbox" id="health-alert-toggle" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+        <button id="play-button" class="play-button">Play Now</button>
+    </div>
+    <script type="module">
+        import GlimmerPlugin from './glimmer-plugin.js';
+        
+        window.addEventListener('DOMContentLoaded', () => {
+            const { KeepAwake, Preferences } = Capacitor.Plugins;
+
+            const serverSelect = document.getElementById('server-select');
+            const keepAwakeToggle = document.getElementById('keep-awake-toggle');
+            const idleAlertToggle = document.getElementById('idle-alert-toggle');
+            const pmAlertToggle = document.getElementById('pm-alert-toggle');
+            const healthAlertToggle = document.getElementById('health-alert-toggle');
+            const playButton = document.getElementById('play-button');
+
+            const servers = {
+                '1': 'https://server1.highspell.com:8888',
+                '2': 'https://server2.highspell.com:8888',
+            };
+
+            const applyWakelock = async () => {
+                if (keepAwakeToggle.checked) await KeepAwake.keepAwake();
+                else await KeepAwake.allowSleep();
+            };
+
+            const saveAllSettings = async () => {
+                await Preferences.set({ key: 'glimmer_server', value: serverSelect.value });
+                await Preferences.set({ key: 'glimmer_wakelock', value: String(keepAwakeToggle.checked) });
+                await Preferences.set({ key: 'glimmer_idleAlert', value: String(idleAlertToggle.checked) });
+                await Preferences.set({ key: 'glimmer_pmAlert', value: String(pmAlertToggle.checked) });
+                await Preferences.set({ key: 'glimmer_healthAlert', value: String(healthAlertToggle.checked) });
+            };
+
+            const loadSettings = async () => {
+                const { value: server } = await Preferences.get({ key: 'glimmer_server' });
+                if (server) serverSelect.value = server;
+
+                const { value: wakelock } = await Preferences.get({ key: 'glimmer_wakelock' });
+                if (wakelock !== null) keepAwakeToggle.checked = (wakelock === 'true');
+
+                const { value: idleAlert } = await Preferences.get({ key: 'glimmer_idleAlert' });
+                if (idleAlert !== null) idleAlertToggle.checked = (idleAlert === 'true');
+
+                const { value: pmAlert } = await Preferences.get({ key: 'glimmer_pmAlert' });
+                if (pmAlert !== null) pmAlertToggle.checked = (pmAlert === 'true');
+                
+                const { value: healthAlert } = await Preferences.get({ key: 'glimmer_healthAlert' });
+                if (healthAlert !== null) healthAlertToggle.checked = (healthAlert === 'true');
+
+                await applyWakelock();
+            };
+            
+            keepAwakeToggle.addEventListener('change', applyWakelock);
+
+            playButton.addEventListener('click', async () => {
+                await saveAllSettings();
+                const selectedServerId = serverSelect.value;
+                const selectedServerUrl = servers[selectedServerId];
+                GlimmerPlugin.loadGame({ serverId: selectedServerId, serverUrl: selectedServerUrl });
+            });
+
+            loadSettings();
+        });
+    </script>
+</body>
+</html>

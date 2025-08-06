@@ -1,0 +1,9 @@
+{
+  "appId": "io.glimmer.client",
+  "appName": "Glimmer",
+  "webDir": "www",
+  "plugins": {},
+  "server": {
+    "androidScheme": "https"
+  }
+}
