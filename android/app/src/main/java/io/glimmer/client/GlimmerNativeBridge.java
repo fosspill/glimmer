@@ -25,7 +25,10 @@ public class GlimmerNativeBridge {
         // Capacitor Preferences plugin uses this specific storage name by default.
         prefs = c.getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
     }
-
+    @JavascriptInterface
+    public void log(String message) {
+        Log.d("GlimmerJS", message);
+    }
     @JavascriptInterface
     public void notify(String title, String body) {
         // NOTE: Methods called via JavascriptInterface run on a background thread.

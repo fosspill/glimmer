@@ -1,4 +1,12 @@
 const Glimmer = {
+    log: (message) => {
+        if (window.GlimmerNative && window.GlimmerNative.log) {
+            window.GlimmerNative.log(message);
+        } else {
+            // Fallback to console.log if the native bridge isn't available
+            console.log("GlimmerJS (fallback):", message);
+        }
+    },
     notify: (title, body) => {
         if (window.GlimmerNative && window.GlimmerNative.notify) {
             window.GlimmerNative.notify(title, body);
@@ -54,12 +62,14 @@ const Glimmer = {
         lastAnimation: 0,
         start() {
             Glimmer.TickManager.subscribe(() => {
-                const playerAnimation = window.game.player?.animation?.id ?? -1;
+                const playerAnimation = window.game?.player?.animation?.id ?? -1;
                 if (playerAnimation !== -1 && this.lastAnimation === -1) {
                     clearTimeout(this.idleTimer);
                     this.idleTimer = null;
                 } else if (playerAnimation === -1 && this.lastAnimation !== -1 && !this.idleTimer) {
                     this.idleTimer = setTimeout(() => {
+                        // Use the new logging function
+                        Glimmer.log("Idle timer triggered!"); 
                         Glimmer.notify("Glimmer: AFK Alert!", "Your character is idle.");
                     }, 10000);
                 }
@@ -75,6 +85,8 @@ const Glimmer = {
             if (targetFunction && !this.originalAddMessage) {
                 this.originalAddMessage = targetFunction;
                 window.game.chat.addMessage = (message, type, sender) => {
+                    // Use the new logging function
+                    Glimmer.log(`New message: type=${type}, sender=${sender}`);
                     if (type === 2 && sender) {
                         Glimmer.notify("New Private Message!", `From: ${sender}`);
                     }
@@ -88,10 +100,15 @@ const Glimmer = {
         lastHealthPercent: 100,
         start() {
             Glimmer.TickManager.subscribe(() => {
-                const currentHp = window.game.skills?.get('hitpoints')?.level ?? 10;
-                const maxHp = window.game.skills?.get('hitpoints')?.maxLevel ?? 10;
+                const currentHp = window.game?.skills?.get('hitpoints')?.level ?? 10;
+                const maxHp = window.game?.skills?.get('hitpoints')?.maxLevel ?? 10;
                 const healthPercent = (currentHp / maxHp) * 100;
+                
+                // Use the new logging function for debugging
+                Glimmer.log("Current HP: " + currentHp + ", Max HP: " + maxHp + ", Health %: " + healthPercent);
+
                 if (healthPercent < 20 && this.lastHealthPercent >= 20) {
+                    Glimmer.log("Low health condition met!"); // More logging
                     Glimmer.notify("Low Health Warning!", `Your health is below 20%!`);
                 }
                 this.lastHealthPercent = healthPercent;
@@ -103,24 +120,30 @@ const Glimmer = {
         // We wait a moment for the game to fully load before we do anything.
         setTimeout(() => {
             if (window.GlimmerNative && window.GlimmerNative.getSettings) {
-                console.log("Glimmer: Native bridge found! Initializing hooks...");
+                // Use the new logging function
+                Glimmer.log("Glimmer: Native bridge found! Initializing hooks...");
                 const settingsJson = window.GlimmerNative.getSettings();
                 this.SettingsManager.load(settingsJson);
 
                 this.TickManager.start();
+                Glimmer.log("TickManager started.");
 
                 if (this.SettingsManager.get('glimmer_idleAlert', true)) {
                     this.IdleNotifier.start();
+                    Glimmer.log("IdleNotifier started.");
                 }
                 if (this.SettingsManager.get('glimmer_pmAlert', true)) {
                     this.PMNotifier.start();
+                    Glimmer.log("PMNotifier started.");
                 }
                 if (this.SettingsManager.get('glimmer_healthAlert', true)) {
                     this.HealthNotifier.start();
+                    Glimmer.log("HealthNotifier started.");
                 }
-                console.log("Glimmer: All enabled hooks initialized!");
+                Glimmer.log("Glimmer: All enabled hooks initialized!");
             } else {
-                console.error("Glimmer: Could not find native bridge. Features will be disabled.");
+                // Use the new logging function here too
+                Glimmer.log("Glimmer: Could not find native bridge. Features will be disabled.");
             }
         }, 8000);
     }
