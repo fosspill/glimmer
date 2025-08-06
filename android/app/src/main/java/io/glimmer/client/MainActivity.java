@@ -1,5 +1,6 @@
 package io.glimmer.client;
 
+import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Intent;
@@ -51,6 +52,7 @@ public class MainActivity extends BridgeActivity {
         try {
             String scriptContent = getScriptContent();
 
+            // Inject the script just before the closing body tag
             String modifiedHtml = html.replace("</body>", "<script type=\"text/javascript\">" + scriptContent + "</script></body>");
 
             WebView webView = getBridge().getWebView();
