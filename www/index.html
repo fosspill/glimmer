@@ -74,6 +74,7 @@
             </div>
         </div>
         <button id="play-button" class="play-button">Play Now</button>
+        <button id="test-notification-button">Test Notification</button>
     </div>
     <script type="module">
         import GlimmerPlugin from './glimmer-plugin.js';
@@ -137,5 +138,15 @@
             loadSettings();
         });
     </script>
+    <script>
+    document.getElementById('test-notification-button').addEventListener('click', () => {
+        if (window.GlimmerNative && window.GlimmerNative.notify) {
+            console.log("Sending a test notification...");
+            window.GlimmerNative.notify("Test Title", "This is a test notification.");
+        } else {
+            console.error("GlimmerNative bridge not found!");
+        }
+    });
+</script>
 </body>
 </html>
