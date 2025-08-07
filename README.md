@@ -95,4 +95,7 @@ This section gives a clear picture of what's working and what needs to be done n
     
 *   **Foreground Service:** The service starts and stops correctly with the app's lifecycle. currently under development
     
-
+### To Do:
+* Fix foreground service (make sure app is not battery optimized?)
+* Make app fullscreen
+* Make game performance mode by default? Set useragent to mobile, maybe?
