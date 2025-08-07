@@ -1,8 +1,8 @@
 # Glimmer: Highspell Mobile Client
 
-Welcome to the Glimmer project. This is a custom mobile client for Android, designed to enhance the experience of playing the web-based game "Highspell" for us mobile blebs.
+Welcome Glimmer✨. This is a mobile client trying to be a "Highlite Lite" for us Android plebs. 
 
-The main goal of this project is to provide a more integrated mobile experience, offering features like persistent settings and convenient in-game alerts that are not available in a standard web browser.
+The main goal of this project is to make the game run in the background, but also provide in-game alerts much like Highlite. 
 
 
 ## Core Features
@@ -15,8 +15,6 @@ The main goal of this project is to provide a more integrated mobile experience,
     
     *   **AFK Alert:** Notifies you when your character has been idle for a set period.
         
-    *   **Private Message Alert:** Get an instant notification when you receive a new private message.
-        
     *   **Low Health Alert:** A warning when your character's health drops below 20%.
         
 *   **Background Service:** A foreground service keeps the game connection alive and notifies you that the game is running when the app is in the background.
@@ -26,8 +24,7 @@ The main goal of this project is to provide a more integrated mobile experience,
 ## How It Works: The Magic Behind Glimmer
 
 
-
-The project uses a hybrid approach, combining a native Android shell with a web-based game. It's built on the **Capacitor** framework, which allows us to bridge web code and native Android features seamlessly.
+The project uses a hybrid approach, combining a native Android with https://highspell.com. It's built on the **Capacitor** framework, which allows us to bridge web code and native Android features seamlessly.
 
 Here's a step-by-step look at the architecture:
 
@@ -52,17 +49,14 @@ This is the heart of our Android app. It contains the `WebView` that will run th
 ### 4\. The Injected Script (`injected-script.js`)
 
 
-
-This script is our "agent" inside the game. It runs within the game's WebView and has access to all of the game's own variables and functions. It waits for the game to load, then it **hooks** into core game functions, like the main update loop (`game.tick`) and the chat system. By watching these, it can detect when you go idle, get a PM, or have low health.
+This script is our "agent" inside the game. It listens (read-only) to the web traffic and sockets used by highspell  By watching and analysing the received data, it can detect when you go idle or have low health.
 
 ### 5\. The Native Bridge (`GlimmerNativeBridge.java`)
 
 
-
-This class acts as the translator between our JavaScript and native Android worlds. When the injected script detects an event (like low health), it calls a function on this bridge. The bridge's `notify` method is responsible for creating and displaying a real Android system notification. The bridge also provides a `getSettings` method so the script knows which alerts you've enabled.
+This class acts as the translator between our JavaScript and native Android worlds. When the injected script detects an event (like low health), it calls a function on this bridge. 
 
 ### 6\. Background Service (`ForegroundService.java`)
-
 
 
 To make sure the game connection is not terminated when you switch apps, we use a `ForegroundService`. When you minimize the app, this service starts and displays a persistent notification that Glimmer is running. This tells the Android operating system to keep our app alive.
@@ -97,19 +91,8 @@ This section gives a clear picture of what's working and what needs to be done n
     
 *   **Script Injection:** `MainActivity` correctly injects the script into the WebView.
     
-*   **Game Hooks:** The script successfully hooks into the game's core functions.
-    
 *   **JS to Native Communication:** The JavaScript code correctly calls the native bridge when alerts are triggered.
     
-*   **Foreground Service:** The service starts and stops correctly with the app's lifecycle.
+*   **Foreground Service:** The service starts and stops correctly with the app's lifecycle. currently under development
     
 
-### What's To-Do: The Next Big Step!
-
-
-
-*   **Implement System Notifications in `GlimmerNativeBridge.java`**
-    
-    *   This is the **highest priority**. Currently, the `notify` method only logs to the console.
-        
-    *   We need to add the Android code here to build and display an actual system notification using `NotificationCompat.Builder`. This will make the alerts visible to you outside the app.
