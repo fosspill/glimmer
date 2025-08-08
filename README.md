@@ -99,3 +99,4 @@ This section gives a clear picture of what's working and what needs to be done n
 * Fix foreground service (make sure app is not battery optimized?)
 * Make app fullscreen
 * Make game performance mode by default? Set useragent to mobile, maybe?
+* Research world map possibilities
