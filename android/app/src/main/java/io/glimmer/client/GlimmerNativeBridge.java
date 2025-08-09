@@ -57,6 +57,7 @@ public class GlimmerNativeBridge {
         notificationManager.notify(notificationId++, notification);
     }
 
+
     @JavascriptInterface
     public String getSettings() {
         // Fetch settings required by the injected script.

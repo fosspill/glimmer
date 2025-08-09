@@ -34,6 +34,7 @@ public class MainActivity extends BridgeActivity {
         WebView webView = getBridge().getWebView();
         GlimmerNativeBridge nativeBridge = new GlimmerNativeBridge(this);
         webView.addJavascriptInterface(nativeBridge, "GlimmerNative");
+
     }
 
     private String getScriptContent() throws IOException {
@@ -51,9 +52,20 @@ public class MainActivity extends BridgeActivity {
     public void loadGameWithHtml(String html, String baseUrl) {
         try {
             String scriptContent = getScriptContent();
+            String scriptTag = "<script type=\"text/javascript\">" + scriptContent + "</script>";
+            String modifiedHtml = html;
+            Log.d(TAG, "Loaded HTML into WebView.");
 
-            // Inject the script just before the closing body tag
-            String modifiedHtml = html.replace("</body>", "<script type=\"text/javascript\">" + scriptContent + "</script></body>");
+            int headIndex = html.toLowerCase().indexOf("<head>");
+
+            if (headIndex != -1) {
+                int injectionIndex = headIndex + "<head>".length();
+                modifiedHtml = html.substring(0, injectionIndex) + scriptTag + html.substring(injectionIndex);
+                Log.d(TAG, "Injected script into <head>.");
+            } else {
+                Log.w(TAG, "Could not find <head> tag. Injecting before </body>. WebSocket interception might fail.");
+                modifiedHtml = html.replace("</body>", scriptTag + "</body>");
+            }
 
             WebView webView = getBridge().getWebView();
             webView.loadDataWithBaseURL(baseUrl, modifiedHtml, "text/html", "UTF-8", null);
@@ -63,6 +75,7 @@ public class MainActivity extends BridgeActivity {
             Log.e(TAG, "Failed to read or inject script.", e);
         }
     }
+
 
     private void startForegroundService() {
         Intent serviceIntent = new Intent(this, ForegroundService.class);

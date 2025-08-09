@@ -8,7 +8,13 @@ const glimmerLog = (message) => {
 };
 
 const Glimmer = {
-    settings: {}, // Store settings loaded from native
+    // --- State Properties ---
+    myEntityId: null,
+    myCurrentHealth: null,
+    myMaxHealth: null,
+    idleTimer: null,
+    isLowHealth: false, // Spam prevention flag
+    settings: {},
 
     // Send a notification using the native bridge
     notify: (title, body) => {
@@ -19,79 +25,159 @@ const Glimmer = {
         }
     },
 
-    // --- Module for Idle Detection ---
-    IdleNotifier: {
-        idleTimer: null,
-        lastAnimation: 0,
-        start: function() {
-            if (!this.isAttached && window.game && window.game.player) {
-                glimmerLog("Attaching IdleNotifier...");
-                this.isAttached = true;
-                setInterval(() => {
-                    if (!this.settings.glimmer_idleAlert) return;
+    // --- NEW: Health Alert Logic ---
+    checkHealthAlert: function() {
+        if (!this.settings.glimmer_healthAlert || this.myMaxHealth === null || this.myCurrentHealth === null) {
+            return;
+        }
 
-                    const playerAnimation = window.game.player.animation ? window.game.player.animation.id : -1;
-                    
-                    if (playerAnimation !== -1 && this.lastAnimation === -1) {
-                        clearTimeout(this.idleTimer);
-                        this.idleTimer = null;
-                    } else if (playerAnimation === -1 && this.lastAnimation !== -1 && !this.idleTimer) {
+        const healthPercent = (this.myCurrentHealth / this.myMaxHealth) * 100;
+
+        if (healthPercent < 20 && !this.isLowHealth) {
+            this.notify("Low Health Warning!", `Your health is below 20% (${this.myCurrentHealth}/${this.myMaxHealth})`);
+            this.isLowHealth = true; // Set flag to avoid spam
+        } else if (healthPercent >= 20 && this.isLowHealth) {
+            this.isLowHealth = false; // Reset flag when health is restored
+        }
+    },
+
+    // --- Central Packet Handler ---
+    handlePacket: function(actionId, payload) {
+        // Any real action from our player should cancel the idle timer.
+        if (payload && payload[0] === this.myEntityId && actionId !== 13) {
+            if (this.idleTimer) {
+                clearTimeout(this.idleTimer);
+                this.idleTimer = null;
+                glimmerLog('Player activity detected, idle timer cleared.');
+            }
+        }
+
+        switch (actionId) {
+            case 8: // ShowDamage: [SenderEntityID, ReceiverEntityID, DamageAmount]
+                if (payload[1] === this.myEntityId) {
+                    const damage = payload[2];
+                    this.myCurrentHealth -= damage;
+                    glimmerLog(`Took ${damage} damage. Current health: ${this.myCurrentHealth}`);
+                    this.checkHealthAlert();
+                }
+                break;
+
+            case 13: // EnteredIdleState: [EntityID, EntityType]
+                if (this.settings.glimmer_idleAlert && payload[0] === this.myEntityId) {
+                    glimmerLog('Player entered idle state. Starting 30-second timer...');
+                    if (!this.idleTimer) {
                         this.idleTimer = setTimeout(() => {
-                            Glimmer.notify("Glimmer: AFK Alert!", "Your character has been idle for 10 seconds.");
-                        }, 10000);
+                            this.notify("Glimmer: AFK Alert!", "You have been idle for 30 seconds.");
+                            this.idleTimer = null;
+                        }, 30000);
                     }
-                    this.lastAnimation = playerAnimation;
-                }, 500); // Check every 500ms
+                }
+                break;
+            
+            case 91: // HealthRestored: [EntityType, EntityID, CurrentHealth]
+                if (payload[1] === this.myEntityId) {
+                    this.myCurrentHealth = payload[2];
+                    glimmerLog(`Health restored. Current health: ${this.myCurrentHealth}`);
+                    this.checkHealthAlert();
+                }
+                break;
+        }
+    },
+
+    // --- Network Monitoring Module ---
+    NetworkMonitor: {
+        start: function() {
+            if (this.isIntercepted) return;
+            glimmerLog("[NetworkMonitor] Injecting network interceptors...");
+
+            // --- XHR Interceptor (for polling and login) ---
+            const OriginalXHR = window.XMLHttpRequest;
+            window.XMLHttpRequest = function() {
+                const xhr = new OriginalXHR(arguments);
+                xhr.addEventListener('load', function () {
+                    if (this.responseURL && this.responseURL.includes('socket.io') && typeof this.responseText === 'string') {
+                        glimmerLog('[XHRMonitor] Captured response from: ' + this.responseURL);
+                        
+                        if (this.responseText.includes('42["16"')) {
+                            glimmerLog('>>>>>>>>>> LOGGEDIN PACKET CAPTURED VIA XHR! <<<<<<<<<<');
+                            try {
+                                const data = JSON.parse(this.responseText.substring(2));
+                                const loginPayload = data[1];
+                                
+                                // Set Entity ID
+                                Glimmer.myEntityId = loginPayload[0];
+                                glimmerLog('Success! Your EntityID is now set to: ' + Glimmer.myEntityId);
+
+                                // Set Initial Health from HitpointsCurrLvl (index 27)
+                                const initialHp = loginPayload[27];
+                                Glimmer.myMaxHealth = initialHp;
+                                Glimmer.myCurrentHealth = initialHp;
+                                glimmerLog(`Health initialized. Max: ${Glimmer.myMaxHealth}, Current: ${Glimmer.myCurrentHealth}`);
+                                
+                                Glimmer.notify("Glimmer Connected", "Now monitoring your session.");
+                            } catch (e) {
+                                glimmerLog('Error parsing LoggedIn packet: ' + e);
+                            }
+                        }
+                    }
+                });
+                return xhr;
+            };
+
+            // --- WebSocket Interceptor (for live game events) ---
+            const OriginalWebSocket = window.WebSocket;
+            window.WebSocket = new Proxy(OriginalWebSocket, {
+                construct: (target, args) => {
+                    const wsInstance = Reflect.construct(target, args);
+                    glimmerLog('[WSMonitor] Connection initiated: ' + wsInstance.url);
+                    wsInstance.addEventListener('message', (event) => Glimmer.NetworkMonitor.handleMessage(event));
+                    wsInstance.addEventListener('open', () => glimmerLog('[WSMonitor] Connection opened'));
+                    wsInstance.addEventListener('close', (e) => glimmerLog(`[WSMonitor] Connection closed. Code: ${e.code}, Reason: ${e.reason}`));
+                    const originalSend = wsInstance.send;
+                    wsInstance.send = function(data) {
+                        glimmerLog('[WSMonitor] Sent: ' + (typeof data === 'string' ? data : '[Binary Data]'));
+                        return originalSend.apply(this, arguments);
+                    };
+                    return wsInstance;
+                }
+            });
+
+            this.isIntercepted = true; 
+            glimmerLog('[NetworkMonitor] Network interceptors injected successfully.');
+        },
+
+        handleMessage: function(event) {
+            const data = typeof event.data === 'string' ? event.data : '[Binary Data]';
+            glimmerLog('[WSMonitor] Received Raw: ' + data);
+            
+            try {
+                if (typeof data === 'string' && data.startsWith('42')) {
+                    const messageContent = JSON.parse(data.substring(2));
+                    const actionIdString = messageContent[0];
+                    const payload = messageContent[1];
+
+                    // Handle batched updates (ID "0")
+                    if (actionIdString === "0" && Array.isArray(payload)) {
+                        payload.forEach(update => {
+                            Glimmer.handlePacket(update[0], update[1]);
+                        });
+                    } else {
+                        // Handle single events
+                        Glimmer.handlePacket(parseInt(actionIdString, 10), payload);
+                    }
+                }
+            } catch (e) {
+                // Ignore parsing errors, we already logged the raw data
             }
         },
-        isAttached: false
+        isIntercepted: false,
     },
 
-    // --- Module for Private Message Detection ---
-    PMNotifier: {
-        originalAddMessage: null,
-        start: function() {
-            if (!this.originalAddMessage && window.game && window.game.chat && typeof window.game.chat.addMessage === 'function') {
-                glimmerLog("Attaching PMNotifier...");
-                this.originalAddMessage = window.game.chat.addMessage;
-                window.game.chat.addMessage = (message, type, sender) => {
-                    if (this.settings.glimmer_pmAlert && type === 2 && sender) {
-                        Glimmer.notify("New Private Message!", `From: ${sender}`);
-                    }
-                    return this.originalAddMessage.call(window.game.chat, message, type, sender);
-                };
-            }
-        }
-    },
-
-    // --- Module for Health Monitoring ---
-    HealthNotifier: {
-        lastHealthPercent: 100,
-        start: function() {
-            if (!this.isAttached && window.game && window.game.skills) {
-                glimmerLog("Attaching HealthNotifier...");
-                this.isAttached = true;
-                setInterval(() => {
-                    if (!this.settings.glimmer_healthAlert) return;
-
-                    const currentHp = window.game.skills.get('hitpoints')?.level;
-                    const maxHp = window.game.skills.get('hitpoints')?.maxLevel;
-
-                    if (currentHp !== undefined && maxHp !== undefined) {
-                        const healthPercent = (currentHp / maxHp) * 100;
-                        if (healthPercent < 20 && this.lastHealthPercent >= 20) {
-                            Glimmer.notify("Low Health Warning!", `Your health is below 20%!`);
-                        }
-                        this.lastHealthPercent = healthPercent;
-                    }
-                }, 1000); // Check every second
-            }
-        }
-    },
-
-    // --- Main Initialization Logic ---
+    // --- Main Initialization ---
     initialize: function() {
-        // First, load the settings from the native side.
+        this.NetworkMonitor.start();
+
+        // Load settings from native
         if (window.GlimmerNative && window.GlimmerNative.getSettings) {
             try {
                 const settingsJson = window.GlimmerNative.getSettings();
@@ -99,37 +185,9 @@ const Glimmer = {
                 glimmerLog("Settings loaded: " + settingsJson);
             } catch (e) {
                 glimmerLog("Error parsing settings: " + e.toString());
-                // Set default settings if parsing fails
-                this.settings = { glimmer_idleAlert: true, glimmer_pmAlert: true, glimmer_healthAlert: true };
             }
-        } else {
-            glimmerLog("GlimmerNative not found. Using default settings.");
-            // Set default settings if the bridge isn't available
-            this.settings = { glimmer_idleAlert: true, glimmer_pmAlert: true, glimmer_healthAlert: true };
         }
-
-        // Now, set up an interval to check for the game object.
-        const checkGameInterval = setInterval(() => {
-            if (window.game && window.game.isReady) {
-                glimmerLog("Game object found. Initializing modules.");
-                clearInterval(checkGameInterval); // Stop checking once found.
-                
-                // Initialize modules now that the game is ready.
-                this.IdleNotifier.settings = this.settings;
-                this.PMNotifier.settings = this.settings;
-                this.HealthNotifier.settings = this.settings;
-
-                this.IdleNotifier.start();
-                this.PMNotifier.start();
-                this.HealthNotifier.start();
-
-                glimmerLog("Glimmer client fully initialized.");
-            } else {
-                glimmerLog("Waiting for game to initialize...");
-            }
-        }, 1000); // Check every second
     }
 };
 
-// Start the initialization process
 Glimmer.initialize();
