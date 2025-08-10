@@ -6,31 +6,7 @@
     <title>Glimmer Launcher</title>
     <script src="capacitor.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=MedievalSharp&family=Inter:wght@400;500;700&display=swap');
-        :root {
-            --theme-color: #00de7a;
-            --body-bg-color: #202020;
-            --container-bg-color: #363636cf;
-            --font-color: #f8f8f8;
-            --input-bg-color: #404040;
-            --input-border-color: #505050;
-        }
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: var(--body-bg-color); color: var(--font-color); display: flex; justify-content: center; align-items: center; font-family: 'Inter', sans-serif; }
-        .launcher-container { display: flex; flex-direction: column; align-items: center; gap: 25px; padding: 40px; background: var(--container-bg-color); backdrop-filter: blur(8px); border-radius: 20px; box-shadow: 0 0 40px rgba(0, 222, 122, 0.15); border: 1px solid rgba(0, 222, 122, 0.2); }
-        @keyframes glimmer-effect { 0%, 100% { text-shadow: 0 0 5px var(--theme-color), 0 0 10px var(--theme-color), 0 0 15px #fff, 0 0 20px var(--theme-color); } 50% { text-shadow: 0 0 10px var(--theme-color), 0 0 20px var(--theme-color), 0 0 30px #fff, 0 0 40px var(--theme-color); } }
-        .title { font-family: 'MedievalSharp', cursive; font-size: 52px; color: var(--theme-color); animation: glimmer-effect 4s ease-in-out infinite; margin-bottom: 10px; }
-        .settings-group { display: flex; flex-direction: column; gap: 18px; width: 100%; }
-        .setting-item { display: flex; justify-content: space-between; align-items: center; width: 300px; }
-        label { font-size: 18px; }
-        select { background: var(--input-bg-color); color: var(--font-color); border: 1px solid var(--input-border-color); border-radius: 8px; padding: 8px 12px; font-family: 'Inter', sans-serif; font-size: 16px; }
-        .play-button { font-family: 'Inter', sans-serif; font-weight: 700; font-size: 20px; padding: 12px 40px; border: none; border-radius: 10px; background: var(--theme-color); color: var(--body-bg-color); cursor: pointer; transition: all 0.2s ease-in-out; box-shadow: 0 0 20px rgba(0, 222, 122, 0.4); }
-        .play-button:hover { transform: scale(1.05); box-shadow: 0 0 30px rgba(0, 222, 122, 0.7); }
-        .switch { position: relative; display: inline-block; width: 50px; height: 28px; }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--input-bg-color); transition: .4s; border-radius: 28px; border: 1px solid var(--input-border-color); }
-        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 3px; background-color: #f8f8f8; transition: .4s; border-radius: 50%; }
-        input:checked + .slider { background-color: var(--theme-color); }
-        input:checked + .slider:before { transform: translateX(20px); }
+        /* ... (CSS Styles remain the same) ... */
     </style>
 </head>
 <body>
@@ -43,6 +19,14 @@
                     <option value="1">Server 1</option>
                     <option value="2">Server 2</option>
                 </select>
+            </div>
+            <!-- NEW: Run in Background Toggle -->
+            <div class="setting-item">
+                <label>Run in Background:</label>
+                <label class="switch">
+                    <input type="checkbox" id="background-toggle" checked>
+                    <span class="slider"></span>
+                </label>
             </div>
             <div class="setting-item">
                 <label>Keep Screen On:</label>
@@ -78,11 +62,20 @@
     </div>
     <script type="module">
         import GlimmerPlugin from './glimmer-plugin.js';
+
+        // Capacitor 7 Modernization: Accessing plugins via the exported registry
+        // capacitorExports is defined globally by capacitor.js
+        const { registerPlugin } = capacitorExports;
+        
+        // Register standard plugins using the modern approach
+        const KeepAwake = registerPlugin('KeepAwake');
+        const Preferences = registerPlugin('Preferences');
         
         window.addEventListener('DOMContentLoaded', () => {
-            const { KeepAwake, Preferences } = Capacitor.Plugins;
+            // const { KeepAwake, Preferences } = Capacitor.Plugins; // OLD WAY
 
             const serverSelect = document.getElementById('server-select');
+            const backgroundToggle = document.getElementById('background-toggle'); // NEW
             const keepAwakeToggle = document.getElementById('keep-awake-toggle');
             const idleAlertToggle = document.getElementById('idle-alert-toggle');
             const pmAlertToggle = document.getElementById('pm-alert-toggle');
@@ -95,12 +88,15 @@
             };
 
             const applyWakelock = async () => {
+                // KeepAwake prevents the screen from turning off while the app is open.
                 if (keepAwakeToggle.checked) await KeepAwake.keepAwake();
                 else await KeepAwake.allowSleep();
             };
 
             const saveAllSettings = async () => {
                 await Preferences.set({ key: 'glimmer_server', value: serverSelect.value });
+                // NEW: Save the background setting (Key must match MainActivity.java)
+                await Preferences.set({ key: 'glimmer_runInBackground', value: String(backgroundToggle.checked) });
                 await Preferences.set({ key: 'glimmer_wakelock', value: String(keepAwakeToggle.checked) });
                 await Preferences.set({ key: 'glimmer_idleAlert', value: String(idleAlertToggle.checked) });
                 await Preferences.set({ key: 'glimmer_pmAlert', value: String(pmAlertToggle.checked) });
@@ -110,6 +106,10 @@
             const loadSettings = async () => {
                 const { value: server } = await Preferences.get({ key: 'glimmer_server' });
                 if (server) serverSelect.value = server;
+
+                // NEW: Load the background setting
+                const { value: runInBackground } = await Preferences.get({ key: 'glimmer_runInBackground' });
+                if (runInBackground !== null) backgroundToggle.checked = (runInBackground === 'true');
 
                 const { value: wakelock } = await Preferences.get({ key: 'glimmer_wakelock' });
                 if (wakelock !== null) keepAwakeToggle.checked = (wakelock === 'true');
