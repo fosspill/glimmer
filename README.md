@@ -1,102 +1,60 @@
-# Glimmer: Highspell Mobile Client
+# Glimmer ✨
 
-Welcome Glimmer✨. This is a mobile client trying to be a "Highlite Lite" for us Android plebs. 
+Hello! Welcome to Glimmer. This is a lightweight mobile client for Highspell, designed to be a "Highlite Lite" for Android.
 
-The main goal of this project is to make the game run in the background, but also provide in-game alerts much like Highlite. 
+Its main purpose is to keep the game running in the background and provide helpful in-game alerts, similar to Highlite.
 
+## What's Inside?
 
-## Core Features
-
-*   **Custom Game Launcher:** Select a server and toggle various client settings before starting the game.
+*   **Custom Launcher:** Pick your server and tweak settings before you hop in.
     
-*   **Keep Screen On:** An option to prevent the device from sleeping while the game is active.
+*   **Always Awake:** A toggle to keep your screen on while you play.
     
-*   **In-Game Event Notifiers:** The client can send Android system notifications for important events:
+*   **Helpful Alerts:** Get notifications for important events, like being **idle** for too long or having **low health**.
     
-    *   **AFK Alert:** Notifies you when your character has been idle for a set period.
-        
-    *   **Low Health Alert:** A warning when your character's health drops below 20%.
-        
-*   **Background Service:** A foreground service keeps the game connection alive and notifies you that the game is running when the app is in the background.
+*   **World Map:** A handy map overlay to see where you are. 🗺️
+    
+*   **Runs in the Background:** Keeps your game alive, even when you switch apps.
     
 
+## How the Magic Happens 🪄
 
-## How It Works: The Magic Behind Glimmer
+Glimmer uses  **Capacitor** to wrap the Highspell web game in a native Android shell.
 
+The flow is pretty simple:
 
-The project uses a hybrid approach, combining a native Android with https://highspell.com. It's built on the **Capacitor** framework, which allows us to bridge web code and native Android features seamlessly.
-
-Here's a step-by-step look at the architecture:
-
-### 1\. The Launcher (`index.html`)
-
-
-
-This is the first screen you see. It's a simple HTML page styled with CSS to create the "Glimmer" theme. It uses Capacitor plugins to save your settings (like which alerts are on) and to keep the screen awake. When you press "Play Now," it calls our custom native plugin to start the game.
-
-### 2\. Loading the Game (`GlimmerPlugin.java`)
-
-
-
-This is our own custom Capacitor plugin, created to handle the specific way Highspell loads its game. It receives the selected server from the launcher, makes a request to the game's server to get the game's HTML, and then passes that HTML to our main Android activity.
-
-### 3\. The Main Hub (`MainActivity.java`)
-
-
-
-This is the heart of our Android app. It contains the `WebView` that will run the game. Its most important job is **script injection**. Before loading the game's HTML, it inserts our own custom JavaScript file (`injected-script.js`) into it. It also manages the background service and sets up the "native bridge" for communication.
-
-### 4\. The Injected Script (`injected-script.js`)
-
-
-This script is our "agent" inside the game. It listens (read-only) to the web traffic and sockets used by highspell  By watching and analysing the received data, it can detect when you go idle or have low health.
-
-### 5\. The Native Bridge (`GlimmerNativeBridge.java`)
-
-
-This class acts as the translator between our JavaScript and native Android worlds. When the injected script detects an event (like low health), it calls a function on this bridge. 
-
-### 6\. Background Service (`ForegroundService.java`)
-
-
-To make sure the game connection is not terminated when you switch apps, we use a `ForegroundService`. When you minimize the app, this service starts and displays a persistent notification that Glimmer is running. This tells the Android operating system to keep our app alive.
-
-
-
-## ✨ Acknowledgements & Community
-
-
-
-This project stands on the shoulders of giants and wouldn't exist without the brilliant work of others in the Highspell community. A huge, heartfelt thank you goes out to:
-
-*   **Highl1te / KKonaOG**: For the incredible [HighliteDesktop](https://github.com/Highl1te/HighliteDesktop/) and [Plugins](https://github.com/Highl1te/Plugins) repositories. Your work was the primary inspiration and provided a clear blueprint for how a custom client could be built.
-*   **CodyBrunson**: For the clever [Idle-Alert](https://github.com/CodyBrunson/Idle-Alert) plugin. This project was the direct spark for Glimmer's notification features, AFK Alert and general plugin design.
-
-Your code and methods were an invaluable learning resource. Thank you for paving the way!
-
-
-## Project Status & To-Do List
-
-
-
-This section gives a clear picture of what's working and what needs to be done next.
-
-### What's Working:
-
-
-
-*   **UI & Settings:** The launcher is fully functional. Settings are correctly saved and loaded.
+1.  It all starts in the **Launcher**, a simple web page. Hitting "Play" tells the native Android app to start the game.
     
-*   **Game Loading:** The plugin successfully fetches and loads the game HTML.
+2.  The app fetches the game's HTML from the Highspell server.
     
-*   **Script Injection:** `MainActivity` correctly injects the script into the WebView.
+3.  Before loading the game, it injects a special **script**.
     
-*   **JS to Native Communication:** The JavaScript code correctly calls the native bridge when alerts are triggered.
+4.  This script watches the game's network traffic from the inside to detect events like low health or being idle.
     
-*   **Foreground Service:** The service starts and stops correctly with the app's lifecycle. currently under development
+5.  When an event happens, the script uses a **native bridge** to tell the Android app to send a notification.
     
-### To Do:
-* Fix foreground service (make sure app is not battery optimized?)
-* Make app fullscreen
-* Make game performance mode by default? Set useragent to mobile, maybe?
-* Research world map possibilities
+6.  If you switch apps, a **Foreground Service** keeps the game connected.
+    
+
+## ✨ Shoutouts & Thank Yous
+
+Glimmer is heavily inspired by the amazing work of others in the Highspell community. A huge thank you to:
+
+*   **Highl1te / KKonaOG**: For the incredible [HighliteDesktop](https://github.com/Highl1te/HighliteDesktop/) and  [Plugins](https://github.com/Highl1te/Plugins) repositories. As well as the world map at [highlite.dev](https://highlite.dev). This is main inspiration and blueprint for Glimmer, the functionality and directly feeds the worldmap.
+    
+*   **CodyBrunson**: For the clever [Idle-Alert](https://github.com/CodyBrunson/Idle-Alert) plugin, which sparked the idea for Glimmer's notification features.
+    
+Thank you all for sharing your work and paving the way!
+
+
+## Project Status
+
+Here's a quick look at what's currently working:
+
+*   The launcher and its settings are fully functional.
+    
+*   The helper script is injected into the game correctly.
+    
+*   The script communicates with native notifications as intended.
+    
+*   The background service correctly keeps the app alive.
