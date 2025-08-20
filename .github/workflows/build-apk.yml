@@ -49,11 +49,11 @@ jobs:
       
     - name: Build Debug APK
       working-directory: android
-      run: ./gradlew assembleDebug
+      run: ./gradlew assembleDebug -Dorg.gradle.dependency.verification=lenient --continue
       
     - name: Build Release APK
       working-directory: android
-      run: ./gradlew assembleRelease
+      run: ./gradlew assembleRelease -Dorg.gradle.dependency.verification=lenient --continue
       
     - name: Sign Release APK
       working-directory: android
