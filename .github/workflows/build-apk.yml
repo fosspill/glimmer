@@ -1,0 +1,121 @@
+name: Build APK
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v1.0.0, v1.1.0, etc.
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Build web assets
+      run: npm run build --if-present
+      
+    - name: Sync Capacitor
+      run: |
+        npm run sync:android
+        
+    - name: Setup signing keystore
+      run: |
+        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/keystore.jks
+        echo "storeFile=keystore.jks" >> android/keystore.properties
+        echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/keystore.properties
+        echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/keystore.properties
+        echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/keystore.properties
+      
+    - name: Build Debug APK
+      working-directory: android
+      run: ./gradlew assembleDebug
+      
+    - name: Build Release APK
+      working-directory: android
+      run: ./gradlew assembleRelease
+      
+    - name: Sign Release APK
+      working-directory: android
+      run: |
+        # The release APK should already be signed if keystore.properties is configured
+        echo "Release APK built and signed"
+        
+    - name: Rename APKs
+      run: |
+        mkdir -p build-outputs
+        # Get version from tag (remove 'v' prefix)
+        VERSION=${GITHUB_REF#refs/tags/v}
+        # Copy and rename APKs
+        cp android/app/build/outputs/apk/debug/app-debug.apk "build-outputs/glimmer-${VERSION}-debug.apk"
+        cp android/app/build/outputs/apk/release/app-release.apk "build-outputs/glimmer-${VERSION}-release.apk"
+        
+    - name: Generate APK info
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "Version: $VERSION" > build-outputs/BUILD_INFO.txt
+        echo "Built: $(date)" >> build-outputs/BUILD_INFO.txt
+        echo "Commit: $GITHUB_SHA" >> build-outputs/BUILD_INFO.txt
+        # Get APK sizes
+        echo "Debug APK size: $(du -h build-outputs/glimmer-${VERSION}-debug.apk | cut -f1)" >> build-outputs/BUILD_INFO.txt
+        echo "Release APK size: $(du -h build-outputs/glimmer-${VERSION}-release.apk | cut -f1)" >> build-outputs/BUILD_INFO.txt
+        
+    - name: Upload APK artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: apk-builds
+        path: build-outputs/
+        retention-days: 30
+        
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: |
+          build-outputs/*.apk
+          build-outputs/BUILD_INFO.txt
+        body: |
+          ## Glimmer ${{ github.ref_name }}
+          
+          ✨ **Your magical companion for Highspell adventures!** ✨
+          
+          ### Downloads
+          - **Release APK**: `glimmer-${{ github.ref_name }}-release.apk` (Recommended for most users)
+          - **Debug APK**: `glimmer-${{ github.ref_name }}-debug.apk` (For developers and testing)
+          
+          ### Installation
+          1. Download the release APK
+          2. Enable "Unknown sources" in Android settings
+          3. Install the APK
+          4. Configure your server and alerts
+          5. Enter the realm! ⚔️
+          
+          ### What's New
+          See commit history for detailed changes in this release.
+          
+          ---
+          🔗 **F-Droid Repository**: Coming soon!
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

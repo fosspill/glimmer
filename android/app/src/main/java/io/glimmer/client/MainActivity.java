@@ -1,15 +1,21 @@
 package io.glimmer.client;
 
+import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.PowerManager;
 import android.util.Log;
 import android.webkit.WebView;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.core.content.ContextCompat;
 
 import com.getcapacitor.BridgeActivity;
 
@@ -24,6 +30,8 @@ public class MainActivity extends BridgeActivity {
     private static final String PREFS_NAME = "CapacitorStorage";
     private PowerManager.WakeLock wakeLock;
     private static final long WAKELOCK_TIMEOUT = 20 * 60 * 1000L;
+    private ActivityResultLauncher<String> requestPermissionLauncher;
+    private boolean isServiceRunning = false;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -41,6 +49,24 @@ public class MainActivity extends BridgeActivity {
         WebView webView = getBridge().getWebView();
         GlimmerNativeBridge nativeBridge = new GlimmerNativeBridge(this);
         webView.addJavascriptInterface(nativeBridge, "GlimmerNative");
+
+        requestPermissionLauncher = registerForActivityResult(
+                new ActivityResultContracts.RequestPermission(),
+                isGranted -> {
+                    if (isGranted) {
+                        Log.d(TAG, "Notification permission granted.");
+                        notifyJSPermissionResult(true);
+                    } else {
+                        Log.d(TAG, "Notification permission denied.");
+                        notifyJSPermissionResult(false);
+                    }
+                });
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+            }
+        }
     }
 
     private String getScriptContent(String fileName) throws IOException {
@@ -81,6 +107,18 @@ public class MainActivity extends BridgeActivity {
 
             WebView webView = getBridge().getWebView();
             webView.getSettings().setDomStorageEnabled(true);
+            webView.getSettings().setJavaScriptEnabled(true);
+            webView.getSettings().setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+            
+            // Enable WebSocket support
+            webView.getSettings().setAllowContentAccess(true);
+            webView.getSettings().setAllowFileAccess(true);
+            webView.getSettings().setAllowUniversalAccessFromFileURLs(true);
+            webView.getSettings().setAllowFileAccessFromFileURLs(true);
+            
+            // Leave default WebView User-Agent
+            
+            Log.d(TAG, "WebView configured with WebSocket support settings");
             webView.loadDataWithBaseURL(baseUrl, modifiedHtml, "text/html", "UTF-8", null);
             Log.d(TAG, "Successfully loaded modified HTML into WebView.");
 
@@ -97,23 +135,47 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void startForegroundService() {
-        if (wakeLock != null && !wakeLock.isHeld()) {
-            wakeLock.acquire(WAKELOCK_TIMEOUT);
+        if (isServiceRunning) {
+            Log.d(TAG, "Service is already running, skipping start");
+            return;
         }
-        Intent serviceIntent = new Intent(this, ForegroundService.class);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent);
-        } else {
-            startService(serviceIntent);
+        
+        try {
+            if (wakeLock != null && !wakeLock.isHeld()) {
+                wakeLock.acquire(WAKELOCK_TIMEOUT);
+            }
+            Intent serviceIntent = new Intent(this, ForegroundService.class);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Log.d(TAG, "Starting foreground service for Android O+");
+                startForegroundService(serviceIntent);
+            } else {
+                Log.d(TAG, "Starting service for pre-Android O");
+                startService(serviceIntent);
+            }
+            isServiceRunning = true;
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start foreground service", e);
+            isServiceRunning = false;
         }
     }
 
     private void stopForegroundService() {
-        if (wakeLock != null && wakeLock.isHeld()) {
-            wakeLock.release();
+        if (!isServiceRunning) {
+            Log.d(TAG, "Service is not running, skipping stop");
+            return;
         }
-        Intent serviceIntent = new Intent(this, ForegroundService.class);
-        stopService(serviceIntent);
+        
+        try {
+            if (wakeLock != null && wakeLock.isHeld()) {
+                wakeLock.release();
+            }
+            Intent serviceIntent = new Intent(this, ForegroundService.class);
+            Log.d(TAG, "Stopping foreground service");
+            stopService(serviceIntent);
+            isServiceRunning = false;
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to stop foreground service", e);
+        }
     }
 
     private void createNotificationChannel() {
@@ -138,6 +200,24 @@ public class MainActivity extends BridgeActivity {
         } else {
             stopForegroundService();
         }
+    }
+
+    public void requestNotificationPermissionFromJS() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+            } else {
+                notifyJSPermissionResult(true);
+            }
+        } else {
+            notifyJSPermissionResult(true);
+        }
+    }
+
+    private void notifyJSPermissionResult(boolean granted) {
+        WebView webView = getBridge().getWebView();
+        String jsCallback = String.format("if (window.handlePermissionResult) { window.handlePermissionResult(%b); }", granted);
+        webView.post(() -> webView.evaluateJavascript(jsCallback, null));
     }
 
     @Override

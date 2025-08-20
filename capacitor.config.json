@@ -3,7 +3,5 @@
   "appName": "Glimmer",
   "webDir": "www",
   "plugins": {},
-  "server": {
-    "androidScheme": "https"
-  }
+  "server": {}
 }

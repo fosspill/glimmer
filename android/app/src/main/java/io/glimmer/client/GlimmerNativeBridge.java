@@ -1,16 +1,19 @@
 package io.glimmer.client;
 
+import android.Manifest;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.util.Log;
 import android.webkit.JavascriptInterface;
 
 import androidx.core.app.NotificationCompat;
+import androidx.core.content.ContextCompat;
 
 import org.json.JSONObject;
 
@@ -35,6 +38,13 @@ public class GlimmerNativeBridge {
     public void notify(String title, String body) {
         Log.d(TAG, "Notify: " + title + " - " + body);
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                Log.d(TAG, "Notification permission not granted, suppressing notification.");
+                return;
+            }
+        }
+
         Intent intent = new Intent(context, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent pendingIntent;
@@ -57,6 +67,22 @@ public class GlimmerNativeBridge {
         notificationManager.notify(notificationId++, notification);
     }
 
+
+    @JavascriptInterface
+    public boolean hasNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+        }
+        return true; // Pre-Android 13 doesn't require runtime permission for notifications
+    }
+
+    @JavascriptInterface
+    public void requestNotificationPermission() {
+        Log.d(TAG, "Permission request initiated from JavaScript");
+        if (context instanceof MainActivity) {
+            ((MainActivity) context).requestNotificationPermissionFromJS();
+        }
+    }
 
     @JavascriptInterface
     public String getSettings() {

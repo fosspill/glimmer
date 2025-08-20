@@ -7,9 +7,9 @@
     <script src="capacitor.js"></script>
     <style>
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: #121212;
-            color: #ffffff;
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #2d4a3e, #1a2f25);
+            color: #f5deb3;
             margin: 0;
             padding: 0;
             display: flex;
@@ -17,25 +17,87 @@
             align-items: center;
             min-height: 100vh;
             box-sizing: border-box;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(2px 2px at 20px 30px, #ffd700, transparent),
+                radial-gradient(2px 2px at 40px 70px, #ffed4e, transparent),
+                radial-gradient(1px 1px at 90px 40px, #ffd700, transparent);
+            background-repeat: repeat;
+            background-size: 120px 120px;
+            animation: float 8s ease-in-out infinite;
+            pointer-events: none;
+            opacity: 0.3;
+            z-index: 0;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
         }
 
         .launcher-container {
             width: 90%;
             max-width: 400px;
-            background-color: #1e1e1e;
+            background: linear-gradient(145deg, #8b7355, #6b5d4f);
             padding: 25px;
             border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            border: 3px solid #d4af37;
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
             text-align: center;
             max-height: 95vh;
             overflow-y: auto;
+            position: relative;
+            z-index: 1;
         }
 
         .title {
-            color: #bb86fc;
-            margin-bottom: 25px;
-            font-size: 28px;
+            background: linear-gradient(45deg, #ffd700, #ffed4e, #ffd700, #ffed4e);
+            background-size: 400% 400%;
+            animation: shimmer 2s ease-in-out infinite;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+            margin-bottom: 10px;
+            font-size: 32px;
             font-weight: bold;
+            position: relative;
+        }
+
+        .title::after {
+            content: '✨';
+            position: absolute;
+            right: -15px;
+            top: -5px;
+            animation: sparkle 1.5s ease-in-out infinite;
+            -webkit-text-fill-color: initial;
+        }
+
+        @keyframes shimmer {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        @keyframes sparkle {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+
+        .subtitle {
+            color: #daa520;
+            font-size: 14px;
+            margin-bottom: 25px;
+            font-style: italic;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
         }
 
         .settings-group {
@@ -50,48 +112,78 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 5px 0;
+            padding: 8px 12px;
+            background: rgba(139, 115, 85, 0.2);
+            border-radius: 6px;
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            margin: 4px 0;
         }
 
         label {
+            color: #f5deb3;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+            font-weight: 500;
             font-size: 16px;
         }
 
         select {
             padding: 8px 12px;
-            border-radius: 6px;
-            border: 1px solid #333;
-            background-color: #333;
-            color: white;
+            border-radius: 4px;
+            border: 2px solid #d4af37;
+            background: linear-gradient(145deg, #8b7355, #6b5d4f);
+            color: #f5deb3;
             font-size: 16px;
+            font-family: 'Courier New', monospace;
         }
 
         .play-button {
-            background-color: #03dac6;
-            color: #000;
-            border: none;
+            background: linear-gradient(145deg, #4CAF50, #45a049);
+            border: 2px solid #2e7d32;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+            box-shadow: inset 2px 2px 4px rgba(255,255,255,0.3), 
+                        inset -2px -2px 4px rgba(0,0,0,0.3);
             padding: 15px;
             font-size: 18px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
             border-radius: 8px;
             cursor: pointer;
-            transition: background-color 0.3s;
+            transition: all 0.3s;
             width: 100%;
             margin-bottom: 10px;
+            position: relative;
+            overflow: hidden;
         }
 
         .play-button:hover {
-            background-color: #04b4a4;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4),
+                        inset 2px 2px 4px rgba(255,255,255,0.3), 
+                        inset -2px -2px 4px rgba(0,0,0,0.3);
+        }
+
+        .play-button:active {
+            transform: translateY(0);
         }
 
         #test-notification-button {
-            background-color: #333;
-            color: white;
-            border: none;
+            background: linear-gradient(145deg, #8b7355, #6b5d4f);
+            border: 2px solid #d4af37;
+            color: #f5deb3;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
             padding: 10px;
             font-size: 14px;
+            font-family: 'Courier New', monospace;
             border-radius: 8px;
             cursor: pointer;
             width: 100%;
+            transition: all 0.3s;
+        }
+
+        #test-notification-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(212, 175, 55, 0.3);
         }
 
         .switch {
@@ -114,7 +206,8 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background-color: #555;
+            background: linear-gradient(145deg, #8b4513, #654321);
+            border: 1px solid #d4af37;
             transition: .4s;
             border-radius: 28px;
         }
@@ -126,17 +219,19 @@
             width: 20px;
             left: 4px;
             bottom: 4px;
-            background-color: white;
+            background: linear-gradient(145deg, #f5f5dc, #ddd);
+            border: 1px solid #999;
             transition: .4s;
             border-radius: 50%;
         }
 
         input:checked + .slider {
-            background-color: #bb86fc;
+            background: linear-gradient(145deg, #ffd700, #daa520);
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
         }
 
         input:focus + .slider {
-            box-shadow: 0 0 1px #bb86fc;
+            box-shadow: 0 0 5px #d4af37;
         }
 
         input:checked + .slider:before {
@@ -190,51 +285,52 @@
 <body>
     <div class="launcher-container">
         <h1 class="title">Glimmer</h1>
+        <div class="subtitle">✨ Your magical mobile friend for Highspell ✨</div>
         <div class="settings-group">
             <div class="setting-item setting-item-server">
-                <label for="server-select">Server:</label>
+                <label for="server-select">⚔️ Server:</label>
                 <select id="server-select">
                     <option value="1">Server 1</option>
                     <option value="2">Server 2</option>
                 </select>
             </div>
             <div class="setting-item">
-                <label>Run in Background:</label>
+                <label>🌙 Run in Background:</label>
                 <label class="switch">
                     <input type="checkbox" id="background-toggle" checked>
                     <span class="slider"></span>
                 </label>
             </div>
             <div class="setting-item">
-                <label>Keep Screen On:</label>
+                <label>☀️ Keep Screen On:</label>
                 <label class="switch">
                     <input type="checkbox" id="keep-awake-toggle" checked>
                     <span class="slider"></span>
                 </label>
             </div>
              <div class="setting-item">
-                <label>World Map (In-Game):</label>
+                <label>🗺️ World Map (In-Game):</label>
                 <label class="switch">
                     <input type="checkbox" id="map-toggle" checked>
                     <span class="slider"></span>
                 </label>
             </div>
             <div class="setting-item">
-                <label>Idle Alert:</label>
+                <label>💤 Idle Alert:</label>
                 <label class="switch">
                     <input type="checkbox" id="idle-alert-toggle" checked>
                     <span class="slider"></span>
                 </label>
             </div>
             <div class="setting-item">
-                <label>PM Alert:</label>
+                <label>💌 PM Alert:</label>
                 <label class="switch">
                     <input type="checkbox" id="pm-alert-toggle" checked>
                     <span class="slider"></span>
                 </label>
             </div>
             <div class="setting-item">
-                <label>Low Health Alert:</label>
+                <label>❤️ Low Health Alert:</label>
                 <label class="switch">
                     <input type="checkbox" id="health-alert-toggle" checked>
                     <span class="slider"></span>
@@ -242,8 +338,8 @@
             </div>
         </div>
         <div class="button-group">
-            <button id="play-button" class="play-button">Play Now</button>
-            <button id="test-notification-button">Test Notification</button>
+            <button id="play-button" class="play-button">⚔️ Enter Realm</button>
+            <button id="test-notification-button">🔔 Test Notification</button>
         </div>
     </div>
     <script type="module">
@@ -285,6 +381,31 @@
                 await Preferences.set({ key: 'glimmer_healthAlert', value: String(healthAlertToggle.checked) });
             };
 
+            const checkNotificationPermission = () => {
+                if (window.GlimmerNative && window.GlimmerNative.hasNotificationPermission) {
+                    return window.GlimmerNative.hasNotificationPermission();
+                }
+                return true;
+            };
+
+            const requestNotificationPermission = () => {
+                if (window.GlimmerNative && window.GlimmerNative.requestNotificationPermission) {
+                    window.GlimmerNative.requestNotificationPermission();
+                }
+            };
+
+            const handleAlertToggle = async (toggle, settingKey) => {
+                if (toggle.checked) {
+                    const hasPermission = checkNotificationPermission();
+                    if (!hasPermission) {
+                        toggle.checked = false;
+                        requestNotificationPermission();
+                        return;
+                    }
+                }
+                await Preferences.set({ key: settingKey, value: String(toggle.checked) });
+            };
+
             const loadSettings = async () => {
                 const { value: server } = await Preferences.get({ key: 'glimmer_server' });
                 if (server) serverSelect.value = server;
@@ -298,19 +419,76 @@
                 const { value: mapEnabled } = await Preferences.get({ key: 'glimmer_mapEnabled' });
                 if (mapEnabled !== null) mapToggle.checked = (mapEnabled === 'true');
 
+                const hasPermission = checkNotificationPermission();
+
                 const { value: idleAlert } = await Preferences.get({ key: 'glimmer_idleAlert' });
-                if (idleAlert !== null) idleAlertToggle.checked = (idleAlert === 'true');
+                if (idleAlert !== null) idleAlertToggle.checked = (idleAlert === 'true') && hasPermission;
 
                 const { value: pmAlert } = await Preferences.get({ key: 'glimmer_pmAlert' });
-                if (pmAlert !== null) pmAlertToggle.checked = (pmAlert === 'true');
+                if (pmAlert !== null) pmAlertToggle.checked = (pmAlert === 'true') && hasPermission;
 
                 const { value: healthAlert } = await Preferences.get({ key: 'glimmer_healthAlert' });
-                if (healthAlert !== null) healthAlertToggle.checked = (healthAlert === 'true');
+                if (healthAlert !== null) healthAlertToggle.checked = (healthAlert === 'true') && hasPermission;
 
                 await applyWakelock();
             };
 
+            window.handlePermissionResult = (granted) => {
+                if (granted) {
+                    if (window.pendingAlertToggle) {
+                        window.pendingAlertToggle.checked = true;
+                        handleAlertToggle(window.pendingAlertToggle, window.pendingSettingKey);
+                        window.pendingAlertToggle = null;
+                        window.pendingSettingKey = null;
+                    }
+                } else {
+                    console.log("Notification permission denied by user");
+                }
+            };
+
             keepAwakeToggle.addEventListener('change', applyWakelock);
+
+            idleAlertToggle.addEventListener('change', async () => {
+                if (idleAlertToggle.checked) {
+                    const hasPermission = checkNotificationPermission();
+                    if (!hasPermission) {
+                        idleAlertToggle.checked = false;
+                        window.pendingAlertToggle = idleAlertToggle;
+                        window.pendingSettingKey = 'glimmer_idleAlert';
+                        requestNotificationPermission();
+                        return;
+                    }
+                }
+                await handleAlertToggle(idleAlertToggle, 'glimmer_idleAlert');
+            });
+
+            pmAlertToggle.addEventListener('change', async () => {
+                if (pmAlertToggle.checked) {
+                    const hasPermission = checkNotificationPermission();
+                    if (!hasPermission) {
+                        pmAlertToggle.checked = false;
+                        window.pendingAlertToggle = pmAlertToggle;
+                        window.pendingSettingKey = 'glimmer_pmAlert';
+                        requestNotificationPermission();
+                        return;
+                    }
+                }
+                await handleAlertToggle(pmAlertToggle, 'glimmer_pmAlert');
+            });
+
+            healthAlertToggle.addEventListener('change', async () => {
+                if (healthAlertToggle.checked) {
+                    const hasPermission = checkNotificationPermission();
+                    if (!hasPermission) {
+                        healthAlertToggle.checked = false;
+                        window.pendingAlertToggle = healthAlertToggle;
+                        window.pendingSettingKey = 'glimmer_healthAlert';
+                        requestNotificationPermission();
+                        return;
+                    }
+                }
+                await handleAlertToggle(healthAlertToggle, 'glimmer_healthAlert');
+            });
 
             playButton.addEventListener('click', async () => {
                 await saveAllSettings();

@@ -26,7 +26,9 @@ const Glimmer = {
     },
 
     checkHealthAlert: function() {
-        if (!this.settings.glimmer_healthAlert || this.myMaxHealth === null || this.myCurrentHealth === null) {
+        const healthAlertEnabled = this.settings && (this.settings.glimmer_healthAlert === "true" || this.settings.glimmer_healthAlert === true);
+        
+        if (!healthAlertEnabled || this.myMaxHealth === null || this.myCurrentHealth === null) {
             return;
         }
 
@@ -35,8 +37,10 @@ const Glimmer = {
         if (healthPercent < 20 && !this.isLowHealth) {
             this.notify("Low Health Warning!", `Your health is below 20% (${this.myCurrentHealth}/${this.myMaxHealth})`);
             this.isLowHealth = true;
+            glimmerLog(`Low health alert sent. Health: ${this.myCurrentHealth}/${this.myMaxHealth} (${healthPercent.toFixed(1)}%)`);
         } else if (healthPercent >= 20 && this.isLowHealth) {
             this.isLowHealth = false;
+            glimmerLog(`Health recovered above 20%. Health: ${this.myCurrentHealth}/${this.myMaxHealth} (${healthPercent.toFixed(1)}%)`);
         }
     },
 
@@ -57,6 +61,7 @@ const Glimmer = {
         }
 
         if (changed) {
+            glimmerLog(`Position updated: MapLevel=${this.myMapLevel}, X=${this.myX}, Y=${this.myY}`);
             this.WorldMap.updatePosition();
         }
     },
@@ -79,7 +84,24 @@ const Glimmer = {
 
             case 3:
                  if (payload[0] === this.myEntityId) {
-                    this.updateMyLocation(payload[7], payload[8], payload[9]);
+                    // PlayerEnteredChunk: Extract position, map level, and health
+                    const mapLevel = payload[7];
+                    const x = payload[8];
+                    const y = payload[9];
+                    const maxHitpoints = payload[5]; // HitpointsLevel
+                    const currentHitpoints = payload[6]; // CurrentHitpointsLevel
+                    
+                    // Update position and map level
+                    this.updateMyLocation(mapLevel, x, y);
+                    
+                    // Update health information if available
+                    if (maxHitpoints !== undefined && maxHitpoints !== null) {
+                        this.myMaxHealth = maxHitpoints;
+                    }
+                    if (currentHitpoints !== undefined && currentHitpoints !== null) {
+                        this.myCurrentHealth = currentHitpoints;
+                        this.checkHealthAlert();
+                    }
                 }
                 break;
 
@@ -93,15 +115,25 @@ const Glimmer = {
                 break;
 
             case 13:
-                if (this.settings.glimmer_idleAlert && payload[0] === this.myEntityId) {
-                    glimmerLog('Player entered idle state. Starting 30-second timer...');
-                    if (!this.idleTimer) {
-                        this.idleTimer = setTimeout(() => {
-                            this.notify("Glimmer: AFK Alert!", "You have been idle for 30 seconds.");
-                            this.idleTimer = null;
-                        }, 30000);
+                // Only process idle packets for our own entity
+                if (payload && payload[0] === this.myEntityId) {
+                    const idleAlertEnabled = this.settings && (this.settings.glimmer_idleAlert === "true" || this.settings.glimmer_idleAlert === true);
+                    
+                    if (idleAlertEnabled) {
+                        glimmerLog('Player entered idle state. Starting 30-second timer...');
+                        if (!this.idleTimer) {
+                            this.idleTimer = setTimeout(() => {
+                                this.notify("Glimmer: AFK Alert!", "You have been idle for 30 seconds.");
+                                this.idleTimer = null;
+                                glimmerLog('Idle alert notification sent.');
+                            }, 30000);
+                            glimmerLog('Idle timer started (30 seconds).');
+                        } else {
+                            glimmerLog('Idle timer already running, not starting new one.');
+                        }
                     }
                 }
+                // Silently ignore idle packets for other entities
                 break;
 
             case 91:
@@ -342,13 +374,23 @@ const Glimmer = {
     NetworkMonitor: {
         start: function() {
             if (this.isIntercepted) return;
-            glimmerLog("[NetworkMonitor] Injecting network interceptors...");
+            
+            // Set up Socket.IO interception with multiple strategies
+            let ioIntercepted = false;
+            
+            // Socket.IO interception strategies (kept for potential future use)
+            // The WebSocket interception above handles the actual connections
 
             const OriginalXHR = window.XMLHttpRequest;
             window.XMLHttpRequest = function() {
                 const xhr = new OriginalXHR(arguments);
                 xhr.addEventListener('load', function () {
                     if (this.responseURL && this.responseURL.includes('socket.io') && typeof this.responseText === 'string') {
+                        
+                        // Log all Socket.IO polling responses for debugging
+                        if (this.responseText.includes('42[')) {
+                            glimmerLog('[XHR] Socket.IO polling response: ' + this.responseText.substring(0, 200));
+                        }
 
                         if (this.responseText.includes('42["16"')) {
                             glimmerLog('>>>>>>>>>> LOGGEDIN PACKET (16) CAPTURED VIA XHR! <<<<<<<<<<');
@@ -365,6 +407,29 @@ const Glimmer = {
                                 glimmerLog('Error parsing LoggedIn packet via XHR: ' + e);
                             }
                         }
+                        
+                        // Also process other game packets via XHR polling
+                        try {
+                            const messages = this.responseText.split('\n');
+                            for (const message of messages) {
+                                if (message.startsWith('42[') && !message.includes('"16"')) {
+                                    const messageContent = JSON.parse(message.substring(2));
+                                    const actionIdString = messageContent[0];
+                                    const payload = messageContent[1];
+                                    glimmerLog('[XHR] Processing packet via polling: ' + actionIdString);
+                                    
+                                    if (actionIdString === "0" && Array.isArray(payload)) {
+                                        payload.forEach(update => {
+                                            Glimmer.handlePacket(update[0], update[1]);
+                                        });
+                                    } else {
+                                        Glimmer.handlePacket(parseInt(actionIdString, 10), payload);
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            // Ignore parsing errors for non-game messages
+                        }
                     }
                 });
                 return xhr;
@@ -373,15 +438,40 @@ const Glimmer = {
             const OriginalWebSocket = window.WebSocket;
             window.WebSocket = new Proxy(OriginalWebSocket, {
                 construct: (target, args) => {
-                    const wsInstance = Reflect.construct(target, args);
-                    glimmerLog('[WSMonitor] Connection initiated: ' + wsInstance.url);
-                    wsInstance.addEventListener('message', (event) => Glimmer.NetworkMonitor.handleMessage(event));
-                    return wsInstance;
+                    glimmerLog('[WSMonitor] *** WebSocket CONSTRUCTOR CALLED *** URL: ' + args[0]);
+                    glimmerLog('[WSMonitor] WebSocket protocols: ' + JSON.stringify(args[1] || 'none'));
+                    
+                    try {
+                        const wsInstance = Reflect.construct(target, args);
+                        glimmerLog('[WSMonitor] WebSocket instance created successfully');
+                        
+                        wsInstance.addEventListener('open', (event) => {
+                            glimmerLog('[WSMonitor] WebSocket OPENED: ' + wsInstance.url);
+                        });
+                        
+                        wsInstance.addEventListener('close', (event) => {
+                            glimmerLog('[WSMonitor] WebSocket CLOSED: ' + wsInstance.url + ' Code: ' + event.code + ' Reason: ' + event.reason);
+                        });
+                        
+                        wsInstance.addEventListener('error', (event) => {
+                            glimmerLog('[WSMonitor] WebSocket ERROR: ' + wsInstance.url);
+                        });
+                        
+                        wsInstance.addEventListener('message', (event) => {
+                            glimmerLog('[WSMonitor] WebSocket MESSAGE received from: ' + wsInstance.url);
+                            Glimmer.NetworkMonitor.handleMessage(event);
+                        });
+                        
+                        glimmerLog('[WSMonitor] WebSocket ready state: ' + wsInstance.readyState);
+                        return wsInstance;
+                    } catch (error) {
+                        glimmerLog('[WSMonitor] WebSocket construction FAILED: ' + error.toString());
+                        throw error;
+                    }
                 }
             });
 
             this.isIntercepted = true;
-            glimmerLog('[NetworkMonitor] Network interceptors injected successfully.');
         },
 
         handleMessage: function(event) {
@@ -399,6 +489,11 @@ const Glimmer = {
                         return;
                     }
 
+                    if (actionIdString === "pm") {
+                        this.handlePM(payload);
+                        return;
+                    }
+
                     if (actionIdString === "0" && Array.isArray(payload)) {
                         payload.forEach(update => {
                             Glimmer.handlePacket(update[0], update[1]);
@@ -409,6 +504,31 @@ const Glimmer = {
                 }
             } catch (e) {
                 // Suppress errors for non-game packets
+            }
+        },
+
+        handlePM: function(pmData) {
+            // Check if PM alerts are enabled
+            const pmAlertEnabled = Glimmer.settings && (Glimmer.settings.glimmer_pmAlert === "true" || Glimmer.settings.glimmer_pmAlert === true);
+            
+            if (!pmAlertEnabled) {
+                return;
+            }
+
+            try {
+                // PM format: {"type":0,"from":"username","msg":"message"}
+                if (pmData && pmData.from && pmData.msg) {
+                    const fromUser = pmData.from;
+                    const message = pmData.msg;
+                    
+                    // Truncate long messages for notification
+                    const truncatedMsg = message.length > 50 ? message.substring(0, 50) + "..." : message;
+                    
+                    Glimmer.notify(`PM from ${fromUser}`, truncatedMsg);
+                    glimmerLog(`PM received from ${fromUser}: ${message}`);
+                }
+            } catch (e) {
+                glimmerLog('Error processing PM: ' + e.toString());
             }
         },
 
@@ -430,20 +550,122 @@ const Glimmer = {
     },
 
     initialize: function() {
+        // Initialize with default settings to prevent undefined checks
+        this.settings = {
+            glimmer_idleAlert: "true",
+            glimmer_pmAlert: "true", 
+            glimmer_healthAlert: "true",
+            glimmer_mapEnabled: "true"
+        };
+        
         if (window.GlimmerNative && window.GlimmerNative.getSettings) {
             try {
                 const settingsJson = window.GlimmerNative.getSettings();
-                this.settings = JSON.parse(settingsJson);
-                glimmerLog("Settings loaded.");
+                const loadedSettings = JSON.parse(settingsJson);
+                // Merge loaded settings with defaults
+                this.settings = { ...this.settings, ...loadedSettings };
+                glimmerLog("Settings loaded: " + JSON.stringify(this.settings));
             } catch (e) {
-                glimmerLog("Error parsing settings: " + e.toString());
+                glimmerLog("Error parsing settings, using defaults: " + e.toString());
             }
+        } else {
+            glimmerLog("GlimmerNative bridge not available, using default settings.");
         }
 
         this.NetworkMonitor.start();
         this.WorldMap.init();
     }
 };
+
+// Start monitoring immediately, before DOM is loaded
+
+// Ultra-early WebSocket and Socket.IO interception
+const originalWebSocket = window.WebSocket;
+window.WebSocket = new Proxy(originalWebSocket, {
+    construct: (target, args) => {
+        // WebSocket connection initiated
+        
+        try {
+            const wsInstance = Reflect.construct(target, args);
+            
+            wsInstance.addEventListener('open', (event) => {
+                // WebSocket connection established
+            });
+            
+            wsInstance.addEventListener('close', (event) => {
+                glimmerLog('WebSocket connection closed: ' + event.code);
+            });
+            
+            wsInstance.addEventListener('error', (event) => {
+                glimmerLog('WebSocket connection error');
+            });
+            
+            wsInstance.addEventListener('message', (event) => {
+                // Process the message using existing handler
+                if (Glimmer && Glimmer.NetworkMonitor && Glimmer.NetworkMonitor.handleMessage) {
+                    Glimmer.NetworkMonitor.handleMessage(event);
+                } else {
+                    // Glimmer not initialized yet, try to handle manually
+                    const data = typeof event.data === 'string' ? event.data : null;
+                    if (data && data.startsWith('42')) {
+                        try {
+                            const messageContent = JSON.parse(data.substring(2));
+                            const actionIdString = messageContent[0];
+                            const payload = messageContent[1];
+                            
+                            if (actionIdString === "16") {
+                                glimmerLog('>>>>>>>>>> LOGGEDIN PACKET (16) CAPTURED VIA WS! <<<<<<<<<<');
+                                // Process login later when Glimmer is ready
+                                setTimeout(() => {
+                                    if (Glimmer && Glimmer.NetworkMonitor) {
+                                        Glimmer.NetworkMonitor.processLogin(payload, "WS");
+                                    }
+                                }, 1000);
+                            }
+                        } catch (e) {
+                            // Suppress errors for non-game packets
+                        }
+                    }
+                }
+            });
+            
+            return wsInstance;
+        } catch (error) {
+            glimmerLog('WebSocket construction failed: ' + error.toString());
+            throw error;
+        }
+    }
+});
+
+// Early Socket.IO interception with MutationObserver for script loading
+const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+            if (node.tagName === 'SCRIPT' && (node.src || node.textContent)) {
+                if ((node.src && node.src.includes('socket.io')) || 
+                    (node.textContent && node.textContent.includes('socket.io'))) {
+                    glimmerLog('[EARLY-Monitor] Socket.IO script detected!');
+                    
+                    // Try immediate interception
+                    setTimeout(() => {
+                        if (window.io) {
+                            glimmerLog('[EARLY-Monitor] Socket.IO available after script load');
+                            const originalIO = window.io;
+                            window.io = function(url, opts) {
+                                opts = opts || {};
+                                opts.transports = ['websocket', 'polling'];
+                                glimmerLog("[EARLY-Monitor] Socket.IO forced transports: " + JSON.stringify(opts.transports));
+                                return originalIO(url, opts);
+                            };
+                        }
+                    }, 10);
+                }
+            }
+        });
+    });
+});
+
+observer.observe(document, { childList: true, subtree: true });
 
 document.addEventListener("DOMContentLoaded", () => {
     Glimmer.initialize();
