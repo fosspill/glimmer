@@ -49,11 +49,11 @@ jobs:
       
     - name: Build Debug APK
       working-directory: android
-      run: ./gradlew assembleDebug --no-configuration-cache --no-build-cache
+      run: ./gradlew assembleDebug
       
     - name: Build Release APK
       working-directory: android
-      run: ./gradlew assembleRelease --no-configuration-cache --no-build-cache
+      run: ./gradlew assembleRelease
       
     - name: Sign Release APK
       working-directory: android
