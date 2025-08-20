@@ -61,14 +61,33 @@ jobs:
         # The release APK should already be signed if keystore.properties is configured
         echo "Release APK built and signed"
         
-    - name: Rename APKs
+    - name: Find and rename APKs
       run: |
         mkdir -p build-outputs
         # Get version from tag (remove 'v' prefix)
         VERSION=${GITHUB_REF#refs/tags/v}
-        # Copy and rename APKs
-        cp android/app/build/outputs/apk/debug/app-debug.apk "build-outputs/glimmer-${VERSION}-debug.apk"
-        cp android/app/build/outputs/apk/release/app-release.apk "build-outputs/glimmer-${VERSION}-release.apk"
+        
+        # Find the actual APK files (they might have different names)
+        echo "Looking for APK files..."
+        find android/app/build/outputs/apk -name "*.apk" -type f
+        
+        # Copy debug APK
+        DEBUG_APK=$(find android/app/build/outputs/apk/debug -name "*.apk" -type f | head -1)
+        if [ -f "$DEBUG_APK" ]; then
+          cp "$DEBUG_APK" "build-outputs/glimmer-${VERSION}-debug.apk"
+          echo "Found debug APK: $DEBUG_APK"
+        else
+          echo "Debug APK not found"
+        fi
+        
+        # Copy release APK  
+        RELEASE_APK=$(find android/app/build/outputs/apk/release -name "*.apk" -type f | head -1)
+        if [ -f "$RELEASE_APK" ]; then
+          cp "$RELEASE_APK" "build-outputs/glimmer-${VERSION}-release.apk"
+          echo "Found release APK: $RELEASE_APK"
+        else
+          echo "Release APK not found"
+        fi
         
     - name: Generate APK info
       run: |
@@ -76,9 +95,24 @@ jobs:
         echo "Version: $VERSION" > build-outputs/BUILD_INFO.txt
         echo "Built: $(date)" >> build-outputs/BUILD_INFO.txt
         echo "Commit: $GITHUB_SHA" >> build-outputs/BUILD_INFO.txt
-        # Get APK sizes
-        echo "Debug APK size: $(du -h build-outputs/glimmer-${VERSION}-debug.apk | cut -f1)" >> build-outputs/BUILD_INFO.txt
-        echo "Release APK size: $(du -h build-outputs/glimmer-${VERSION}-release.apk | cut -f1)" >> build-outputs/BUILD_INFO.txt
+        echo "" >> build-outputs/BUILD_INFO.txt
+        
+        # Get APK sizes if files exist
+        if [ -f "build-outputs/glimmer-${VERSION}-debug.apk" ]; then
+          echo "Debug APK size: $(du -h build-outputs/glimmer-${VERSION}-debug.apk | cut -f1)" >> build-outputs/BUILD_INFO.txt
+        else
+          echo "Debug APK: Not found" >> build-outputs/BUILD_INFO.txt
+        fi
+        
+        if [ -f "build-outputs/glimmer-${VERSION}-release.apk" ]; then
+          echo "Release APK size: $(du -h build-outputs/glimmer-${VERSION}-release.apk | cut -f1)" >> build-outputs/BUILD_INFO.txt
+        else
+          echo "Release APK: Not found" >> build-outputs/BUILD_INFO.txt
+        fi
+        
+        echo "" >> build-outputs/BUILD_INFO.txt
+        echo "Available files:" >> build-outputs/BUILD_INFO.txt
+        ls -la build-outputs/ >> build-outputs/BUILD_INFO.txt
         
     - name: Upload APK artifacts
       uses: actions/upload-artifact@v4
