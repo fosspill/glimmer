@@ -121,35 +121,3 @@ jobs:
         path: build-outputs/
         retention-days: 30
         
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
-      if: startsWith(github.ref, 'refs/tags/')
-      with:
-        files: |
-          build-outputs/*.apk
-          build-outputs/BUILD_INFO.txt
-        body: |
-          ## Glimmer ${{ github.ref_name }}
-          
-          ✨ **Your magical companion for Highspell adventures!** ✨
-          
-          ### Downloads
-          - **Release APK**: `glimmer-${{ github.ref_name }}-release.apk` (Recommended for most users)
-          - **Debug APK**: `glimmer-${{ github.ref_name }}-debug.apk` (For developers and testing)
-          
-          ### Installation
-          1. Download the release APK
-          2. Enable "Unknown sources" in Android settings
-          3. Install the APK
-          4. Configure your server and alerts
-          5. Enter the realm! ⚔️
-          
-          ### What's New
-          See commit history for detailed changes in this release.
-          
-          ---
-          🔗 **F-Droid Repository**: Coming soon!
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
