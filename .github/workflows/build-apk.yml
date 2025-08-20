@@ -37,7 +37,7 @@ jobs:
       
     - name: Sync Capacitor
       run: |
-        npm run sync:android
+        npm run sync
         
     - name: Setup signing keystore
       run: |
