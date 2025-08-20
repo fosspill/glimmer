@@ -10,6 +10,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.util.Log;
+import android.view.WindowManager;
 import android.webkit.JavascriptInterface;
 
 import androidx.core.app.NotificationCompat;
@@ -98,5 +99,27 @@ public class GlimmerNativeBridge {
 
         JSONObject json = new JSONObject(settingsMap);
         return json.toString();
+    }
+
+    @JavascriptInterface
+    public void keepAwake() {
+        Log.d(TAG, "Enabling keep awake (screen on)");
+        if (context instanceof MainActivity) {
+            MainActivity activity = (MainActivity) context;
+            activity.runOnUiThread(() -> {
+                activity.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            });
+        }
+    }
+
+    @JavascriptInterface
+    public void allowSleep() {
+        Log.d(TAG, "Disabling keep awake (allow sleep)");
+        if (context instanceof MainActivity) {
+            MainActivity activity = (MainActivity) context;
+            activity.runOnUiThread(() -> {
+                activity.getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            });
+        }
     }
 }

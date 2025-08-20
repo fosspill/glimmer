@@ -73,25 +73,6 @@ dependencies {
 
 apply from: 'capacitor.build.gradle'
 
-// Fix task dependencies for @capacitor-community/keep-awake plugin
-afterEvaluate {
-    try {
-        tasks.named('checkDebugAarMetadata').configure {
-            dependsOn ':@capacitor-community_keep-awake:writeDebugAarMetadata'
-        }
-    } catch (Exception e) {
-        // Task might not exist in all configurations
-    }
-    
-    try {
-        tasks.named('checkReleaseAarMetadata').configure {
-            dependsOn ':@capacitor-community_keep-awake:writeReleaseAarMetadata'
-        }
-    } catch (Exception e) {
-        // Task might not exist in all configurations
-    }
-}
-
 try {
     def servicesJSON = file('google-services.json')
     if (servicesJSON.text) {

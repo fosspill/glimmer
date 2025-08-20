@@ -347,7 +347,6 @@
 
         const { registerPlugin } = capacitorExports;
 
-        const KeepAwake = registerPlugin('KeepAwake');
         const Preferences = registerPlugin('Preferences');
 
         window.addEventListener('DOMContentLoaded', () => {
@@ -367,8 +366,13 @@
             };
 
             const applyWakelock = async () => {
-                if (keepAwakeToggle.checked) await KeepAwake.keepAwake();
-                else await KeepAwake.allowSleep();
+                if (window.GlimmerNative) {
+                    if (keepAwakeToggle.checked) {
+                        window.GlimmerNative.keepAwake();
+                    } else {
+                        window.GlimmerNative.allowSleep();
+                    }
+                }
             };
 
             const saveAllSettings = async () => {
