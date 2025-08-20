@@ -30,3 +30,9 @@ android/**/Thumbs.db
 plugins/
 platforms/
 CLAUDE.md
+
+*.pem
+*.key
+*.jks
+*.jks.old
+*.p12
