@@ -49,11 +49,11 @@ jobs:
       
     - name: Build Debug APK
       working-directory: android
-      run: ./gradlew assembleDebug -Dorg.gradle.configuration-cache.problems=warn
+      run: ./gradlew assembleDebug --no-configuration-cache --no-build-cache
       
     - name: Build Release APK
       working-directory: android
-      run: ./gradlew assembleRelease -Dorg.gradle.configuration-cache.problems=warn
+      run: ./gradlew assembleRelease --no-configuration-cache --no-build-cache
       
     - name: Sign Release APK
       working-directory: android
