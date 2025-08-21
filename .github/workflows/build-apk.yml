@@ -113,24 +113,48 @@ jobs:
         echo "Available files:" >> build-outputs/BUILD_INFO.txt
         ls -la build-outputs/ >> build-outputs/BUILD_INFO.txt
         
+    - name: Upload APK artifacts (fallback)
+      uses: actions/upload-artifact@v4
+      with:
+        name: apk-builds-${{ github.event.release.tag_name }}
+        path: build-outputs/
+        retention-days: 30
+        
     - name: Attach APKs to release
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
       run: |
         VERSION=$(echo "${{ github.event.release.tag_name }}" | sed 's/^v//')
         RELEASE_TAG="${{ github.event.release.tag_name }}"
         
+        # Test token permissions first
+        echo "Testing GitHub CLI permissions..."
+        if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+          echo "ERROR: Cannot access release. Token may lack permissions."
+          echo "Please create a Personal Access Token with 'contents: write' permissions"
+          echo "and add it as PAT_TOKEN secret, or download APKs from artifacts above."
+          exit 0  # Don't fail the workflow, just skip upload
+        fi
+        
         # Attach the APKs and build info to the release
         if [ -f "build-outputs/glimmer-${VERSION}-debug.apk" ]; then
           echo "Uploading debug APK..."
-          gh release upload "$RELEASE_TAG" "build-outputs/glimmer-${VERSION}-debug.apk" --clobber
+          if gh release upload "$RELEASE_TAG" "build-outputs/glimmer-${VERSION}-debug.apk" --clobber; then
+            echo "Debug APK uploaded successfully"
+          else
+            echo "Failed to upload debug APK"
+          fi
         else
           echo "Debug APK not found, skipping upload"
         fi
         
         if [ -f "build-outputs/glimmer-${VERSION}-release.apk" ]; then
           echo "Uploading release APK..."
-          gh release upload "$RELEASE_TAG" "build-outputs/glimmer-${VERSION}-release.apk" --clobber
+          if gh release upload "$RELEASE_TAG" "build-outputs/glimmer-${VERSION}-release.apk" --clobber; then
+            echo "Release APK uploaded successfully"
+          else
+            echo "Failed to upload release APK"
+          fi
         else
           echo "Release APK not found, skipping upload"
         fi
@@ -138,8 +162,8 @@ jobs:
         # Upload build info
         if [ -f "build-outputs/BUILD_INFO.txt" ]; then
           echo "Uploading build info..."
-          gh release upload "$RELEASE_TAG" "build-outputs/BUILD_INFO.txt" --clobber
+          gh release upload "$RELEASE_TAG" "build-outputs/BUILD_INFO.txt" --clobber || echo "Failed to upload build info"
         fi
         
-        echo "APK upload completed!"
+        echo "APK upload process completed!"
         
