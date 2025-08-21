@@ -1,9 +1,8 @@
 name: Build APK
 
 on:
-  push:
-    tags:
-      - 'v*'  # Trigger on version tags like v1.0.0, v1.1.0, etc.
+  release:
+    types: [created]  # Trigger when a new release is created
   workflow_dispatch:  # Allow manual triggering
 
 jobs:
@@ -42,10 +41,10 @@ jobs:
     - name: Setup signing keystore
       run: |
         echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/keystore.jks
-        echo "storeFile=keystore.jks" >> android/keystore.properties
-        echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/keystore.properties
-        echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/keystore.properties
-        echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/keystore.properties
+        echo "storeFile=keystore.jks" >> android/app/keystore.properties
+        echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> android/app/keystore.properties
+        echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/app/keystore.properties
+        echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/app/keystore.properties
       
     - name: Build Debug APK
       working-directory: android
@@ -64,8 +63,8 @@ jobs:
     - name: Find and rename APKs
       run: |
         mkdir -p build-outputs
-        # Get version from tag (remove 'v' prefix)
-        VERSION=${GITHUB_REF#refs/tags/v}
+        # Get version from release tag (remove 'v' prefix)
+        VERSION=$(echo "${{ github.event.release.tag_name }}" | sed 's/^v//')
         
         # Find the actual APK files (they might have different names)
         echo "Looking for APK files..."
@@ -91,7 +90,7 @@ jobs:
         
     - name: Generate APK info
       run: |
-        VERSION=${GITHUB_REF#refs/tags/v}
+        VERSION=$(echo "${{ github.event.release.tag_name }}" | sed 's/^v//')
         echo "Version: $VERSION" > build-outputs/BUILD_INFO.txt
         echo "Built: $(date)" >> build-outputs/BUILD_INFO.txt
         echo "Commit: $GITHUB_SHA" >> build-outputs/BUILD_INFO.txt
@@ -114,10 +113,33 @@ jobs:
         echo "Available files:" >> build-outputs/BUILD_INFO.txt
         ls -la build-outputs/ >> build-outputs/BUILD_INFO.txt
         
-    - name: Upload APK artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: apk-builds
-        path: build-outputs/
-        retention-days: 30
+    - name: Attach APKs to release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        VERSION=$(echo "${{ github.event.release.tag_name }}" | sed 's/^v//')
+        RELEASE_TAG="${{ github.event.release.tag_name }}"
+        
+        # Attach the APKs and build info to the release
+        if [ -f "build-outputs/glimmer-${VERSION}-debug.apk" ]; then
+          echo "Uploading debug APK..."
+          gh release upload "$RELEASE_TAG" "build-outputs/glimmer-${VERSION}-debug.apk" --clobber
+        else
+          echo "Debug APK not found, skipping upload"
+        fi
+        
+        if [ -f "build-outputs/glimmer-${VERSION}-release.apk" ]; then
+          echo "Uploading release APK..."
+          gh release upload "$RELEASE_TAG" "build-outputs/glimmer-${VERSION}-release.apk" --clobber
+        else
+          echo "Release APK not found, skipping upload"
+        fi
+        
+        # Upload build info
+        if [ -f "build-outputs/BUILD_INFO.txt" ]; then
+          echo "Uploading build info..."
+          gh release upload "$RELEASE_TAG" "build-outputs/BUILD_INFO.txt" --clobber
+        fi
+        
+        echo "APK upload completed!"
         
