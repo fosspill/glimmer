@@ -27,7 +27,6 @@ jobs:
         
     - name: Download latest APK
       run: |
-        # Get latest release
         RELEASE=$(curl -s https://api.github.com/repos/fosspill/glimmer/releases/latest)
         APK_URL=$(echo "$RELEASE" | jq -r '.assets[] | select(.name | contains("release.apk")) | .browser_download_url')
         VERSION=$(echo "$RELEASE" | jq -r '.tag_name')
@@ -40,56 +39,12 @@ jobs:
           exit 1
         fi
         
-    - name: Create simple repository
+    - name: Create repository files
       run: |
-        # Create basic index.html
-        cat > index.html << 'EOF'
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Glimmer F-Droid Repository</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
-        .repo-url { background: #f5f5f5; padding: 15px; border-radius: 8px; font-family: monospace; word-break: break-all; margin: 20px 0; }
-        .qr { text-align: center; margin: 20px 0; }
-        .btn { display: inline-block; padding: 12px 24px; background: #1976d2; color: white; text-decoration: none; border-radius: 6px; margin: 10px 5px; }
-    </style>
-</head>
-<body>
-    <h1>🎮 Glimmer F-Droid Repository</h1>
-    <p>Lightweight mobile client for Highspell browser game</p>
-    
-    <h2>📱 Add to F-Droid</h2>
-    <div class="repo-url">https://fosspill.github.io/glimmer/repo</div>
-    
-    <div class="qr">
-        <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://fosspill.github.io/glimmer/repo" alt="QR Code" />
-    </div>
-    
-    <p><strong>Instructions:</strong></p>
-    <ol>
-        <li>Open F-Droid</li>
-        <li>Settings → Repositories</li>
-        <li>Add the URL above</li>
-    </ol>
-    
-    <a href="https://github.com/fosspill/glimmer/releases/latest" class="btn">Direct APK Download</a>
-</body>
-</html>
-EOF
-
-        # Create minimal F-Droid index - just enough to work
-        cat > repo/index.xml << 'EOF'
-<?xml version="1.0" encoding="utf-8"?>
-<fdroid>
-  <repo url="https://fosspill.github.io/glimmer/repo" name="Glimmer Repository" version="1" timestamp="1703097600000">
-    <description>Glimmer APK Repository</description>
-  </repo>
-</fdroid>
-EOF
-
-        # Create empty index-v1.jar (modern F-Droid expects this)
+        echo '<!DOCTYPE html><html><head><title>Glimmer F-Droid Repository</title><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px}.repo-url{background:#f5f5f5;padding:15px;border-radius:8px;font-family:monospace;word-break:break-all;margin:20px 0}.qr{text-align:center;margin:20px 0}.btn{display:inline-block;padding:12px 24px;background:#1976d2;color:white;text-decoration:none;border-radius:6px;margin:10px 5px}</style></head><body><h1>🎮 Glimmer F-Droid Repository</h1><p>Lightweight mobile client for Highspell browser game</p><h2>📱 Add to F-Droid</h2><div class="repo-url">https://fosspill.github.io/glimmer/repo</div><div class="qr"><img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://fosspill.github.io/glimmer/repo" alt="QR Code" /></div><p><strong>Instructions:</strong></p><ol><li>Open F-Droid</li><li>Settings → Repositories</li><li>Add the URL above</li></ol><a href="https://github.com/fosspill/glimmer/releases/latest" class="btn">Direct APK Download</a></body></html>' > index.html
+        
+        echo '<?xml version="1.0" encoding="utf-8"?><fdroid><repo url="https://fosspill.github.io/glimmer/repo" name="Glimmer Repository" version="1" timestamp="1703097600000"><description>Glimmer APK Repository</description></repo></fdroid>' > repo/index.xml
+        
         cd repo
         echo '{"repo":{"name":"Glimmer","address":"https://fosspill.github.io/glimmer/repo"},"apps":[],"packages":{}}' > index-v1.json
         jar cf index-v1.jar index-v1.json
@@ -104,4 +59,4 @@ EOF
         git commit -m "Update F-Droid repository" || echo "No changes"
         git push origin fdroid-repo
         
-        echo "✅ Repository available at: https://fosspill.github.io/glimmer/repo"
+        echo "Repository available at: https://fosspill.github.io/glimmer/repo"
