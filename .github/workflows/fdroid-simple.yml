@@ -28,13 +28,13 @@ jobs:
         
     - name: Setup F-Droid repository structure
       run: |
-        mkdir -p fdroid/{repo,metadata}
+        mkdir -p fdroid/repo fdroid/metadata
         
         # Create simple index.xml manually
-        cat > fdroid/index.xml << 'EOF'
+        cat > fdroid/repo/index.xml << 'EOF'
         <?xml version="1.0" encoding="utf-8"?>
         <fdroid>
-            <repo url="https://fosspill.github.io/glimmer/fdroid/repo" 
+            <repo url="https://fosspill.github.io/glimmer/repo" 
                   name="Glimmer F-Droid Repository" 
                   icon="icon.png" 
                   version="1" 
@@ -46,7 +46,6 @@ jobs:
         
     - name: Download latest APK
       run: |
-        cd fdroid
         
         if [ "$GITHUB_EVENT_NAME" = "release" ]; then
           TAG_NAME="${{ github.event.release.tag_name }}"
@@ -68,7 +67,7 @@ jobs:
         
         if [ "$RELEASE_APK_URL" != "null" ] && [ -n "$RELEASE_APK_URL" ]; then
           echo "Downloading: $RELEASE_APK_URL"
-          wget -O "repo/io.glimmer.client_${TAG_NAME#v}.apk" "$RELEASE_APK_URL"
+          wget -O "fdroid/repo/io.glimmer.client_${TAG_NAME#v}.apk" "$RELEASE_APK_URL"
           
           # Create simple app entry in index
           cat > temp_app.xml << EOF
@@ -85,11 +84,11 @@ jobs:
                     <version>${TAG_NAME#v}</version>
                     <versioncode>${TAG_NAME#v//./}</versioncode>
                     <apkname>io.glimmer.client_${TAG_NAME#v}.apk</apkname>
-                    <hash type="sha256">$(sha256sum "repo/io.glimmer.client_${TAG_NAME#v}.apk" | cut -d' ' -f1)</hash>
-                    <size>$(stat -c%s "repo/io.glimmer.client_${TAG_NAME#v}.apk")</size>
+                    <hash type="sha256">$(sha256sum "fdroid/repo/io.glimmer.client_${TAG_NAME#v}.apk" | cut -d' ' -f1)</hash>
+                    <size>$(stat -c%s "fdroid/repo/io.glimmer.client_${TAG_NAME#v}.apk")</size>
                     <sdkver>21</sdkver>
                     <added>$(date +%Y-%m-%d)</added>
-                    <sig>$(unzip -p "repo/io.glimmer.client_${TAG_NAME#v}.apk" META-INF/*.RSA | openssl pkcs7 -inform DER -print_certs | openssl x509 -fingerprint -noout | cut -d= -f2)</sig>
+                    <sig>$(unzip -p "fdroid/repo/io.glimmer.client_${TAG_NAME#v}.apk" META-INF/*.RSA | openssl pkcs7 -inform DER -print_certs | openssl x509 -fingerprint -noout | cut -d= -f2)</sig>
                 </package>
             </application>
         EOF
@@ -100,13 +99,11 @@ jobs:
         
     - name: Create repository files
       run: |
-        cd fdroid
-        
         # Create minimal index.jar (F-Droid clients need this)
         echo "Creating minimal F-Droid repository files..."
         
         # Create index page
-        cat > index.html << 'EOF'
+        cat > fdroid/index.html << 'EOF'
         <!DOCTYPE html>
         <html>
         <head>
@@ -132,11 +129,11 @@ jobs:
             
             <h2>📱 Add to F-Droid</h2>
             <div class="repo-url">
-                https://fosspill.github.io/glimmer/fdroid/repo
+                https://fosspill.github.io/glimmer/repo
             </div>
             
             <div class="qr-code">
-                <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://fosspill.github.io/glimmer/fdroid/repo" alt="QR Code" />
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://fosspill.github.io/glimmer/repo" alt="QR Code" />
             </div>
             
             <p><strong>Instructions:</strong></p>

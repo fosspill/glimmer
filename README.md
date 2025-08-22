@@ -23,17 +23,17 @@ Its main purpose is to keep the game running in the background and provide helpf
 
 Add our custom F-Droid repository to get automatic updates:
 
-**Repository URL:** `https://fosspill.github.io/glimmer/fdroid/repo`
+**Repository URL:** `https://fosspill.github.io/glimmer/repo`
 
 <p align="center">
-  <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://fosspill.github.io/glimmer/fdroid/repo" alt="F-Droid Repository QR Code" />
+  <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://fosspill.github.io/glimmer/repo" alt="F-Droid Repository QR Code" />
 </p>
 
 **How to add:**
 1. Open F-Droid on your Android device
 2. Go to **Settings → Repositories** 
 3. Tap the **+** button
-4. Enter: `https://fosspill.github.io/glimmer/fdroid/repo`
+4. Enter: `https://fosspill.github.io/glimmer/repo`
 
 Or scan the QR code above with F-Droid.
 
