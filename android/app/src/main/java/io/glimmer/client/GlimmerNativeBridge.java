@@ -47,13 +47,18 @@ public class GlimmerNativeBridge {
         }
 
         Intent intent = new Intent(context, MainActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        
+        // Use unique request code to avoid conflicts
+        int requestCode = (int) System.currentTimeMillis();
         PendingIntent pendingIntent;
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            pendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+            pendingIntent = PendingIntent.getActivity(context, requestCode, intent, 
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         } else {
-            pendingIntent = PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+            pendingIntent = PendingIntent.getActivity(context, requestCode, intent, 
+                PendingIntent.FLAG_UPDATE_CURRENT);
         }
 
         Notification notification = new NotificationCompat.Builder(context, MainActivity.CHANNEL_ID)
@@ -62,6 +67,9 @@ public class GlimmerNativeBridge {
                 .setSmallIcon(R.drawable.ic_stat_glimmer)
                 .setContentIntent(pendingIntent)
                 .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setDefaults(NotificationCompat.DEFAULT_ALL)  // Enable sound, vibration, lights
+                .setCategory(NotificationCompat.CATEGORY_ALARM)  // Important game alerts
                 .build();
 
         NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);

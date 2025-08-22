@@ -17,7 +17,7 @@ public class ForegroundService extends Service {
 
     private static final String TAG = "GlimmerForegroundService";
     private static final int NOTIFICATION_ID = 1;
-    private static final String CHANNEL_ID = "GlimmerServiceChannel";
+    private static final String CHANNEL_ID = "GlimmerBackgroundService";
 
     @Override
     public void onCreate() {
@@ -56,14 +56,16 @@ public class ForegroundService extends Service {
     private void startForegroundImmediately() {
         try {
             Intent notificationIntent = new Intent(this, MainActivity.class);
-            notificationIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            notificationIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            notificationIntent.setAction(Intent.ACTION_MAIN);
+            notificationIntent.addCategory(Intent.CATEGORY_LAUNCHER);
             
             PendingIntent pendingIntent;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, 
+                pendingIntent = PendingIntent.getActivity(this, 1000, notificationIntent, 
                     PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
             } else {
-                pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, 
+                pendingIntent = PendingIntent.getActivity(this, 1000, notificationIntent, 
                     PendingIntent.FLAG_UPDATE_CURRENT);
             }
 

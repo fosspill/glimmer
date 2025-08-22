@@ -190,13 +190,31 @@ public class MainActivity extends BridgeActivity {
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel serviceChannel = new NotificationChannel(
+            // Create channel for game alerts (high priority with sound)
+            NotificationChannel alertChannel = new NotificationChannel(
                     CHANNEL_ID,
-                    "Glimmer Service Channel",
-                    NotificationManager.IMPORTANCE_DEFAULT
+                    "Glimmer Game Alerts",
+                    NotificationManager.IMPORTANCE_HIGH
             );
+            alertChannel.setDescription("Important game notifications (health, idle, PMs)");
+            alertChannel.enableLights(true);
+            alertChannel.enableVibration(true);
+            alertChannel.setShowBadge(true);
+            
+            // Create separate channel for background service (low priority, silent)
+            NotificationChannel serviceChannel = new NotificationChannel(
+                    "GlimmerBackgroundService",
+                    "Glimmer Background Service", 
+                    NotificationManager.IMPORTANCE_LOW
+            );
+            serviceChannel.setDescription("Keeps Glimmer running in background");
+            serviceChannel.setShowBadge(false);
+            serviceChannel.enableLights(false);
+            serviceChannel.enableVibration(false);
+            
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) {
+                manager.createNotificationChannel(alertChannel);
                 manager.createNotificationChannel(serviceChannel);
             }
         }
