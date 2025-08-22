@@ -52,7 +52,7 @@ jobs:
         # Initialize F-Droid config if it doesn't exist
         if [ ! -f fdroid/config.yml ]; then
           cat > fdroid/config.yml << 'EOF'
-        repo_url: "https://fosspill.github.io/glimmer/fdroid"
+        repo_url: "https://fosspill.github.io/glimmer/fdroid/repo"
         repo_name: "Glimmer F-Droid Repository" 
         repo_icon: "icon.png"
         repo_description: |
@@ -106,24 +106,44 @@ jobs:
       run: |
         cd fdroid
         
-        # Get the latest release info
-        LATEST_RELEASE=$(curl -s https://api.github.com/repos/fosspill/glimmer/releases/latest)
-        TAG_NAME=$(echo "$LATEST_RELEASE" | jq -r '.tag_name')
+        # Get the latest release info - use specific release if triggered by release event
+        if [ "$GITHUB_EVENT_NAME" = "release" ]; then
+          TAG_NAME="${{ github.event.release.tag_name }}"
+          LATEST_RELEASE=$(curl -s "https://api.github.com/repos/fosspill/glimmer/releases/tags/$TAG_NAME")
+        else
+          LATEST_RELEASE=$(curl -s https://api.github.com/repos/fosspill/glimmer/releases/latest)
+          TAG_NAME=$(echo "$LATEST_RELEASE" | jq -r '.tag_name')
+        fi
         
         echo "Processing release: $TAG_NAME"
+        
+        # Check if we got valid JSON response
+        if [ "$TAG_NAME" = "null" ] || [ -z "$TAG_NAME" ]; then
+          echo "Error: Could not get release information"
+          echo "API Response: $LATEST_RELEASE"
+          exit 1
+        fi
+        
+        # Create repo directory
+        mkdir -p repo
         
         # Download the release APK (prefer release over debug)
         RELEASE_APK_URL=$(echo "$LATEST_RELEASE" | jq -r '.assets[] | select(.name | contains("release.apk")) | .browser_download_url')
         
-        if [ "$RELEASE_APK_URL" != "null" ]; then
+        if [ "$RELEASE_APK_URL" != "null" ] && [ -n "$RELEASE_APK_URL" ]; then
           echo "Downloading release APK: $RELEASE_APK_URL"
           wget -O "repo/glimmer-${TAG_NAME#v}-release.apk" "$RELEASE_APK_URL"
         else
           echo "No release APK found, checking for debug APK"
           DEBUG_APK_URL=$(echo "$LATEST_RELEASE" | jq -r '.assets[] | select(.name | contains("debug.apk")) | .browser_download_url')
-          if [ "$DEBUG_APK_URL" != "null" ]; then
+          if [ "$DEBUG_APK_URL" != "null" ] && [ -n "$DEBUG_APK_URL" ]; then
             echo "Downloading debug APK: $DEBUG_APK_URL"  
             wget -O "repo/glimmer-${TAG_NAME#v}-debug.apk" "$DEBUG_APK_URL"
+          else
+            echo "Error: No APK files found in release $TAG_NAME"
+            echo "Available assets:"
+            echo "$LATEST_RELEASE" | jq -r '.assets[].name'
+            exit 1
           fi
         fi
         
