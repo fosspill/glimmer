@@ -6,9 +6,10 @@ This is, for now, just some notes on what I would like to do, and what I do not 
 * Explore **iOS** build. This would mean build the native bridge and such again, but the injection and logic SHOULD still work the same.
 * ~~Make launcher prettier~~ ✅ **COMPLETED** - Now has sparkling RuneScape Classic-inspired design!
 * ~~Add PM alerts ('42["pm",{"type":0,"from":"XXXXX","msg":"buying gf"}]')~~ ✅ **COMPLETED**
-* **F-Droid Repository Setup** - Automated APK builds and F-Droid repo hosting via GitHub Actions
+* ~~**F-Droid Repository Setup**~~ ❌ **CANCELLED** - F-Droid requires complex cryptographic signing. Direct APK distribution is simpler and more reliable.
+* **In-App Update Checker** - Automatic update notifications and download prompts in the launcher
 
-## F-Droid Repository Implementation Plan
+## APK Distribution & Updates Plan
 
 ### Phase 1: APK Build Automation ✅ **COMPLETED**
 - [x] Create GitHub Action workflow for automated APK builds
@@ -17,37 +18,28 @@ This is, for now, just some notes on what I would like to do, and what I do not 
   - [x] Build both debug and release APKs on git tags
   - [x] Upload APK artifacts to GitHub releases
 
-### Phase 2: F-Droid Metadata Setup ✅ **COMPLETED**
-- [x] Create F-Droid metadata structure
-  - [x] `metadata/io.glimmer.client.yml` - App metadata file
-  - [x] Define app categories, description, changelog format
-  - [x] Configure build recipes and dependencies
-  - [x] Set up proper versioning scheme (using git tags)
+### Phase 2: Direct APK Distribution ✅ **COMPLETED**
+- [x] Update README with direct download instructions
+  - [x] GitHub Releases download link with badge
+  - [x] QR code for easy mobile access
+  - [x] Clear installation steps
+- [x] Remove complex F-Droid infrastructure
+  - [x] Clean up unnecessary workflows
+  - [x] Focus on what actually works
 
-### Phase 3: F-Droid Repository Hosting ✅ **COMPLETED**
-- [x] Setup F-Droid repository infrastructure
-  - [x] Create `fdroiddata` repository structure
-  - [x] Configure F-Droid server tools (fdroidserver)
-  - [x] Generate repository index and signing keys
-  - [x] Host repository files via GitHub Pages
-
-### Phase 4: Automated Repository Updates ✅ **COMPLETED**
-- [x] Create GitHub Action for F-Droid repo maintenance
-  - [x] Auto-update metadata on new releases
-  - [x] Rebuild repository index when APKs are updated
-  - [x] Deploy updated repo to GitHub Pages
-  - [x] Validate APK signatures and metadata
-
-### Phase 5: Documentation & Distribution 🔄 **IN PROGRESS**
-- [x] Create installation instructions
-  - [x] How to add custom F-Droid repo URL
-  - [x] Direct APK download links as fallback
-  - [ ] Update README with installation methods
-- [x] Add F-Droid repo QR code and URL to README
-  - [x] Generate QR code for easy mobile scanning
-  - [x] Include both QR code image and clickable repo URL
-  - [x] Add "Add to F-Droid" button/badge for easy access
-- [ ] Setup monitoring for build failures and repo health
+### Phase 3: In-App Update Checker 🔄 **PLANNED**
+- [ ] Add version check API call to GitHub releases
+  - [ ] Compare current app version with latest release
+  - [ ] Show update notification in launcher UI
+  - [ ] Provide direct download link to latest APK
+- [ ] Update notification UI
+  - [ ] Non-intrusive banner in launcher
+  - [ ] "Update Available" button with version info
+  - [ ] Optional: Auto-download APK (with user permission)
+- [ ] Settings integration
+  - [ ] "Check for updates" manual button
+  - [ ] Toggle for automatic update checks
+  - [ ] Update frequency settings (daily/weekly)
 
 ## Code Refactoring Tasks
 
