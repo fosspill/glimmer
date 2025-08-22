@@ -11,6 +11,9 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.PowerManager;
 import android.util.Log;
+import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
 import android.webkit.WebView;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -39,6 +42,13 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(GlimmerPlugin.class);
         Log.d("GlimmerMainActivity", "GlimmerPlugin registration call completed.");
         super.onCreate(savedInstanceState);
+        
+        // Switch to main theme after splash
+        setTheme(R.style.AppTheme_NoActionBar);
+        
+        // Enable fullscreen mode and hide navigation bar
+        enableFullscreenMode();
+        
         createNotificationChannel();
 
         PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
@@ -224,5 +234,32 @@ public class MainActivity extends BridgeActivity {
     public void onResume() {
         super.onResume();
         stopForegroundService();
+        // Re-enable fullscreen in case it was lost
+        enableFullscreenMode();
+    }
+
+    private void enableFullscreenMode() {
+        Window window = getWindow();
+        if (window != null) {
+            // For API 30+ (Android 11+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.setDecorFitsSystemWindows(false);
+            }
+            
+            // Hide both status bar and navigation bar
+            View decorView = window.getDecorView();
+            int uiOptions = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    | View.SYSTEM_UI_FLAG_LAYOUT_STABLE;
+            decorView.setSystemUiVisibility(uiOptions);
+            
+            // Make navigation bar transparent
+            window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+            window.setNavigationBarColor(getResources().getColor(android.R.color.transparent));
+            window.setStatusBarColor(getResources().getColor(android.R.color.transparent));
+        }
     }
 }
