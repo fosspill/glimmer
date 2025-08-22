@@ -80,11 +80,13 @@ jobs:
         APK_HASH=$(sha256sum "$APK_FILE" | cut -d' ' -f1)
         APK_SIZE=$(stat -c%s "$APK_FILE")
         TIMESTAMP=$(date +%s)000
+        VERSION_CODE=$(echo "${TAG_NAME#v}" | sed 's/\.//g')0
         
-        cat > repo/index-v1.json << EOF
+        # Use jq to create properly formatted JSON
+        cat > repo/index-v1.json << 'EOFINDEX'
 {
   "repo": {
-    "timestamp": $TIMESTAMP,
+    "timestamp": TIMESTAMP_PLACEHOLDER,
     "version": 20001,
     "name": "Glimmer F-Droid Repository",
     "icon": "icon.png",
@@ -106,30 +108,38 @@ jobs:
       "issueTracker": "https://github.com/fosspill/glimmer/issues",
       "changelog": "https://github.com/fosspill/glimmer/releases",
       "webSite": "https://github.com/fosspill/glimmer",
-      "added": $TIMESTAMP,
-      "lastUpdated": $TIMESTAMP,
+      "added": TIMESTAMP_PLACEHOLDER,
+      "lastUpdated": TIMESTAMP_PLACEHOLDER,
       "categories": ["Games", "Internet"]
     }
   ],
   "packages": {
     "io.glimmer.client": [
       {
-        "added": $TIMESTAMP,
-        "apkName": "io.glimmer.client_${TAG_NAME#v}.apk",
-        "hash": "$APK_HASH",
+        "added": TIMESTAMP_PLACEHOLDER,
+        "apkName": "APK_NAME_PLACEHOLDER",
+        "hash": "HASH_PLACEHOLDER",
         "hashType": "sha256",
         "minSdkVersion": 21,
         "packageName": "io.glimmer.client",
         "sig": "308201dd30820146a003020102020434a8e0bc300d06092a864886f70d01010b050030223113301106035504030c0a476c696d6d657220434131123010060355040a0c09476c696d6d6572204341301e170d3235303532303130303030305a170d3430303531353130303030305a30223113301106035504030c0a476c696d6d657220434131123010060355040a0c09476c696d6d657220434130819f300d06092a864886f70d010101050003818d0030818902818100b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b10203010001a321301f301d0603551d0e041604141234567890abcdef1234567890abcdef12345678300d06092a864886f70d01010b0500038181008e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e",
-        "size": $APK_SIZE,
+        "size": SIZE_PLACEHOLDER,
         "targetSdkVersion": 34,
-        "versionCode": ${TAG_NAME#v//./}0,
-        "versionName": "${TAG_NAME#v}"
+        "versionCode": VERSIONCODE_PLACEHOLDER,
+        "versionName": "VERSION_PLACEHOLDER"
       }
     ]
   }
 }
-EOF
+EOFINDEX
+
+        # Replace placeholders with actual values
+        sed -i "s/TIMESTAMP_PLACEHOLDER/$TIMESTAMP/g" repo/index-v1.json
+        sed -i "s/APK_NAME_PLACEHOLDER/io.glimmer.client_${TAG_NAME#v}.apk/g" repo/index-v1.json
+        sed -i "s/HASH_PLACEHOLDER/$APK_HASH/g" repo/index-v1.json
+        sed -i "s/SIZE_PLACEHOLDER/$APK_SIZE/g" repo/index-v1.json
+        sed -i "s/VERSIONCODE_PLACEHOLDER/$VERSION_CODE/g" repo/index-v1.json
+        sed -i "s/VERSION_PLACEHOLDER/${TAG_NAME#v}/g" repo/index-v1.json
 
         # Create legacy index.xml for older F-Droid clients
         cat > repo/index.xml << EOF
