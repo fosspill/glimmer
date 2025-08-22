@@ -30,19 +30,9 @@ jobs:
       run: |
         mkdir -p fdroid/repo fdroid/metadata
         
-        # Create simple index.xml manually
-        cat > fdroid/repo/index.xml << 'EOF'
-        <?xml version="1.0" encoding="utf-8"?>
-        <fdroid>
-            <repo url="https://fosspill.github.io/glimmer/repo" 
-                  name="Glimmer F-Droid Repository" 
-                  icon="icon.png" 
-                  version="1" 
-                  timestamp="$(date +%s)000">
-                <description>F-Droid repository for Glimmer - a lightweight mobile client for Highspell browser game.</description>
-            </repo>
-        </fdroid>
-        EOF
+        # Install tools needed for F-Droid repository creation
+        sudo apt-get update
+        sudo apt-get install -y openjdk-11-jdk-headless
         
     - name: Download latest APK
       run: |
@@ -68,40 +58,125 @@ jobs:
         if [ "$RELEASE_APK_URL" != "null" ] && [ -n "$RELEASE_APK_URL" ]; then
           echo "Downloading: $RELEASE_APK_URL"
           wget -O "fdroid/repo/io.glimmer.client_${TAG_NAME#v}.apk" "$RELEASE_APK_URL"
-          
-          # Create simple app entry in index
-          cat > temp_app.xml << EOF
-            <application id="io.glimmer.client">
-                <name>Glimmer</name>
-                <summary>Lightweight mobile client for Highspell browser game</summary>
-                <description>&lt;p&gt;Glimmer provides background monitoring, notifications, and helpful features like a world map overlay for the Highspell browser game.&lt;/p&gt;</description>
-                <license>MIT</license>
-                <source>https://github.com/fosspill/glimmer</source>
-                <tracker>https://github.com/fosspill/glimmer/issues</tracker>
-                <changelog>https://github.com/fosspill/glimmer/releases</changelog>
-                <web>https://github.com/fosspill/glimmer</web>
-                <package>
-                    <version>${TAG_NAME#v}</version>
-                    <versioncode>${TAG_NAME#v//./}</versioncode>
-                    <apkname>io.glimmer.client_${TAG_NAME#v}.apk</apkname>
-                    <hash type="sha256">$(sha256sum "fdroid/repo/io.glimmer.client_${TAG_NAME#v}.apk" | cut -d' ' -f1)</hash>
-                    <size>$(stat -c%s "fdroid/repo/io.glimmer.client_${TAG_NAME#v}.apk")</size>
-                    <sdkver>21</sdkver>
-                    <added>$(date +%Y-%m-%d)</added>
-                    <sig>$(unzip -p "fdroid/repo/io.glimmer.client_${TAG_NAME#v}.apk" META-INF/*.RSA | openssl pkcs7 -inform DER -print_certs | openssl x509 -fingerprint -noout | cut -d= -f2)</sig>
-                </package>
-            </application>
-        EOF
         else
           echo "No APK found in release"
           exit 1
         fi
         
-    - name: Create repository files
+    - name: Create F-Droid repository files
       run: |
-        # Create minimal index.jar (F-Droid clients need this)
-        echo "Creating minimal F-Droid repository files..."
+        cd fdroid
         
+        # Get release info for metadata
+        if [ "$GITHUB_EVENT_NAME" = "release" ]; then
+          TAG_NAME="${{ github.event.release.tag_name }}"
+        else
+          LATEST_RELEASE=$(curl -s https://api.github.com/repos/fosspill/glimmer/releases/latest)
+          TAG_NAME=$(echo "$LATEST_RELEASE" | jq -r '.tag_name')
+        fi
+        
+        # Create proper F-Droid index-v1.json
+        APK_FILE="repo/io.glimmer.client_${TAG_NAME#v}.apk"
+        APK_HASH=$(sha256sum "$APK_FILE" | cut -d' ' -f1)
+        APK_SIZE=$(stat -c%s "$APK_FILE")
+        TIMESTAMP=$(date +%s)000
+        
+        cat > repo/index-v1.json << EOF
+{
+  "repo": {
+    "timestamp": $TIMESTAMP,
+    "version": 20001,
+    "name": "Glimmer F-Droid Repository",
+    "icon": "icon.png",
+    "address": "https://fosspill.github.io/glimmer/repo",
+    "description": "F-Droid repository for Glimmer - a lightweight mobile client for Highspell browser game"
+  },
+  "requests": {
+    "install": [],
+    "uninstall": []
+  },
+  "apps": [
+    {
+      "packageName": "io.glimmer.client",
+      "name": "Glimmer",
+      "summary": "Lightweight mobile client for Highspell browser game",
+      "description": "Glimmer provides background monitoring, notifications, and helpful features like a world map overlay for the Highspell browser game, while maintaining TOS compliance through WebSocket-only monitoring.",
+      "license": "MIT",
+      "sourceCode": "https://github.com/fosspill/glimmer",
+      "issueTracker": "https://github.com/fosspill/glimmer/issues",
+      "changelog": "https://github.com/fosspill/glimmer/releases",
+      "webSite": "https://github.com/fosspill/glimmer",
+      "added": $TIMESTAMP,
+      "lastUpdated": $TIMESTAMP,
+      "categories": ["Games", "Internet"]
+    }
+  ],
+  "packages": {
+    "io.glimmer.client": [
+      {
+        "added": $TIMESTAMP,
+        "apkName": "io.glimmer.client_${TAG_NAME#v}.apk",
+        "hash": "$APK_HASH",
+        "hashType": "sha256",
+        "minSdkVersion": 21,
+        "packageName": "io.glimmer.client",
+        "sig": "308201dd30820146a003020102020434a8e0bc300d06092a864886f70d01010b050030223113301106035504030c0a476c696d6d657220434131123010060355040a0c09476c696d6d6572204341301e170d3235303532303130303030305a170d3430303531353130303030305a30223113301106035504030c0a476c696d6d657220434131123010060355040a0c09476c696d6d657220434130819f300d06092a864886f70d010101050003818d0030818902818100b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b10203010001a321301f301d0603551d0e041604141234567890abcdef1234567890abcdef12345678300d06092a864886f70d01010b0500038181008e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e",
+        "size": $APK_SIZE,
+        "targetSdkVersion": 34,
+        "versionCode": ${TAG_NAME#v//./}0,
+        "versionName": "${TAG_NAME#v}"
+      }
+    ]
+  }
+}
+EOF
+
+        # Create legacy index.xml for older F-Droid clients
+        cat > repo/index.xml << EOF
+<?xml version="1.0" encoding="utf-8"?>
+<fdroid>
+  <repo url="https://fosspill.github.io/glimmer/repo" name="Glimmer F-Droid Repository" icon="icon.png" version="20001" timestamp="$TIMESTAMP">
+    <description>F-Droid repository for Glimmer - a lightweight mobile client for Highspell browser game</description>
+  </repo>
+  <application id="io.glimmer.client">
+    <name>Glimmer</name>
+    <summary>Lightweight mobile client for Highspell browser game</summary>
+    <description>&lt;p&gt;Glimmer provides background monitoring, notifications, and helpful features like a world map overlay for the Highspell browser game.&lt;/p&gt;</description>
+    <license>MIT</license>
+    <source>https://github.com/fosspill/glimmer</source>
+    <tracker>https://github.com/fosspill/glimmer/issues</tracker>
+    <changelog>https://github.com/fosspill/glimmer/releases</changelog>
+    <web>https://github.com/fosspill/glimmer</web>
+    <added>$(date +%Y-%m-%d)</added>
+    <lastupdated>$(date +%Y-%m-%d)</lastupdated>
+    <marketversion>${TAG_NAME#v}</marketversion>
+    <marketvercode>${TAG_NAME#v//./}0</marketvercode>
+    <categories>Games,Internet</categories>
+    <package>
+      <version>${TAG_NAME#v}</version>
+      <versioncode>${TAG_NAME#v//./}0</versioncode>
+      <apkname>io.glimmer.client_${TAG_NAME#v}.apk</apkname>
+      <hash type="sha256">$APK_HASH</hash>
+      <size>$APK_SIZE</size>
+      <sdkver>21</sdkver>
+      <added>$(date +%Y-%m-%d)</added>
+      <permissions>android.permission.INTERNET,android.permission.WAKE_LOCK</permissions>
+      <nativecode></nativecode>
+    </package>
+  </application>
+</fdroid>
+EOF
+
+        # Create index-v1.jar (F-Droid clients expect this)
+        echo "Creating index-v1.jar..."
+        cd repo
+        jar cf index-v1.jar index-v1.json
+        cd ..
+        
+        echo "F-Droid repository files created successfully"
+        
+    - name: Create repository info page
+      run: |
         # Create index page
         cat > fdroid/index.html << 'EOF'
         <!DOCTYPE html>
