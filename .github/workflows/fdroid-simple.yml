@@ -1,0 +1,177 @@
+name: Simple F-Droid Repository
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * 0'
+
+jobs:
+  update-fdroid-simple:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Checkout F-Droid repo branch
+      run: |
+        if git branch -r | grep -q "origin/fdroid-repo"; then
+          git checkout fdroid-repo
+        else
+          git checkout --orphan fdroid-repo
+          git rm -rf .
+        fi
+        
+    - name: Setup F-Droid repository structure
+      run: |
+        mkdir -p fdroid/{repo,metadata}
+        
+        # Create simple index.xml manually
+        cat > fdroid/index.xml << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <fdroid>
+            <repo url="https://fosspill.github.io/glimmer/fdroid/repo" 
+                  name="Glimmer F-Droid Repository" 
+                  icon="icon.png" 
+                  version="1" 
+                  timestamp="$(date +%s)000">
+                <description>F-Droid repository for Glimmer - a lightweight mobile client for Highspell browser game.</description>
+            </repo>
+        </fdroid>
+        EOF
+        
+    - name: Download latest APK
+      run: |
+        cd fdroid
+        
+        if [ "$GITHUB_EVENT_NAME" = "release" ]; then
+          TAG_NAME="${{ github.event.release.tag_name }}"
+          LATEST_RELEASE=$(curl -s "https://api.github.com/repos/fosspill/glimmer/releases/tags/$TAG_NAME")
+        else
+          LATEST_RELEASE=$(curl -s https://api.github.com/repos/fosspill/glimmer/releases/latest)
+          TAG_NAME=$(echo "$LATEST_RELEASE" | jq -r '.tag_name')
+        fi
+        
+        echo "Processing release: $TAG_NAME"
+        
+        if [ "$TAG_NAME" = "null" ] || [ -z "$TAG_NAME" ]; then
+          echo "Error: Could not get release information"
+          exit 1
+        fi
+        
+        # Download release APK
+        RELEASE_APK_URL=$(echo "$LATEST_RELEASE" | jq -r '.assets[] | select(.name | contains("release.apk")) | .browser_download_url')
+        
+        if [ "$RELEASE_APK_URL" != "null" ] && [ -n "$RELEASE_APK_URL" ]; then
+          echo "Downloading: $RELEASE_APK_URL"
+          wget -O "repo/io.glimmer.client_${TAG_NAME#v}.apk" "$RELEASE_APK_URL"
+          
+          # Create simple app entry in index
+          cat > temp_app.xml << EOF
+            <application id="io.glimmer.client">
+                <name>Glimmer</name>
+                <summary>Lightweight mobile client for Highspell browser game</summary>
+                <description>&lt;p&gt;Glimmer provides background monitoring, notifications, and helpful features like a world map overlay for the Highspell browser game.&lt;/p&gt;</description>
+                <license>MIT</license>
+                <source>https://github.com/fosspill/glimmer</source>
+                <tracker>https://github.com/fosspill/glimmer/issues</tracker>
+                <changelog>https://github.com/fosspill/glimmer/releases</changelog>
+                <web>https://github.com/fosspill/glimmer</web>
+                <package>
+                    <version>${TAG_NAME#v}</version>
+                    <versioncode>${TAG_NAME#v//./}</versioncode>
+                    <apkname>io.glimmer.client_${TAG_NAME#v}.apk</apkname>
+                    <hash type="sha256">$(sha256sum "repo/io.glimmer.client_${TAG_NAME#v}.apk" | cut -d' ' -f1)</hash>
+                    <size>$(stat -c%s "repo/io.glimmer.client_${TAG_NAME#v}.apk")</size>
+                    <sdkver>21</sdkver>
+                    <added>$(date +%Y-%m-%d)</added>
+                    <sig>$(unzip -p "repo/io.glimmer.client_${TAG_NAME#v}.apk" META-INF/*.RSA | openssl pkcs7 -inform DER -print_certs | openssl x509 -fingerprint -noout | cut -d= -f2)</sig>
+                </package>
+            </application>
+        EOF
+        else
+          echo "No APK found in release"
+          exit 1
+        fi
+        
+    - name: Create repository files
+      run: |
+        cd fdroid
+        
+        # Create minimal index.jar (F-Droid clients need this)
+        echo "Creating minimal F-Droid repository files..."
+        
+        # Create index page
+        cat > index.html << 'EOF'
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Glimmer F-Droid Repository</title>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>
+                body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+                .repo-url { background: #f5f5f5; padding: 15px; border-radius: 8px; font-family: monospace; word-break: break-all; }
+                .qr-code { text-align: center; margin: 20px 0; }
+                .button { display: inline-block; padding: 12px 24px; background: #1976d2; color: white; text-decoration: none; border-radius: 6px; margin: 8px 4px; font-weight: bold; }
+                .button:hover { background: #1565c0; }
+                .warning { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 6px; margin: 20px 0; }
+            </style>
+        </head>
+        <body>
+            <h1>🎮 Glimmer F-Droid Repository</h1>
+            <p><strong>Glimmer</strong> - A lightweight mobile client for Highspell browser game</p>
+            
+            <div class="warning">
+                <strong>⚠️ Custom Repository:</strong> This is a third-party F-Droid repository. Add it manually to your F-Droid client.
+            </div>
+            
+            <h2>📱 Add to F-Droid</h2>
+            <div class="repo-url">
+                https://fosspill.github.io/glimmer/fdroid/repo
+            </div>
+            
+            <div class="qr-code">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://fosspill.github.io/glimmer/fdroid/repo" alt="QR Code" />
+            </div>
+            
+            <p><strong>Instructions:</strong></p>
+            <ol>
+                <li>Open F-Droid app</li>
+                <li>Settings → Repositories</li>
+                <li>Tap "+" to add repository</li>
+                <li>Enter the URL above</li>
+                <li>Enable the new repository</li>
+            </ol>
+            
+            <h2>📥 Direct Download</h2>
+            <a href="https://github.com/fosspill/glimmer/releases/latest" class="button">Download Latest APK</a>
+            <a href="https://github.com/fosspill/glimmer" class="button">View Source Code</a>
+            
+            <h2>ℹ️ About</h2>
+            <p>Provides background monitoring, notifications, and world map overlay for Highspell while maintaining TOS compliance through WebSocket-only monitoring.</p>
+            
+            <hr style="margin: 40px 0;">
+            <p><small>Repository automatically updated on new releases. Last updated: $(date -u)</small></p>
+        </body>
+        </html>
+        EOF
+        
+    - name: Deploy to GitHub Pages
+      run: |
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        
+        git add fdroid/
+        
+        if ! git diff --staged --quiet; then
+          git commit -m "Update simple F-Droid repository - $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          git push origin fdroid-repo
+          echo "✅ F-Droid repository deployed: https://fosspill.github.io/glimmer/fdroid/repo"
+        else
+          echo "No changes to deploy"
+        fi

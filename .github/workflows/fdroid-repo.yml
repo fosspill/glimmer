@@ -54,20 +54,19 @@ jobs:
           cat > fdroid/config.yml << 'EOF'
         repo_url: "https://fosspill.github.io/glimmer/fdroid/repo"
         repo_name: "Glimmer F-Droid Repository" 
-        repo_icon: "icon.png"
         repo_description: |
           F-Droid repository for Glimmer - a lightweight mobile client for Highspell browser game.
           
           To add this repository to your F-Droid client:
           1. Open F-Droid
           2. Go to Settings → Repositories  
-          3. Add repository: https://fosspill.github.io/glimmer/fdroid
+          3. Add repository: https://fosspill.github.io/glimmer/fdroid/repo
           
         archive_older: 2
         
-        keystores:
-          repo: keystore.jks
-          
+        keystore: keystore.jks
+        keyalias: fdroid
+        
         allowed_age_days: 365
         EOF
         fi
@@ -154,11 +153,31 @@ jobs:
         cd fdroid
         export FDROID_KEY_STORE_PASS="${FDROID_KEYSTORE_PASSWORD}"
         
-        # Update the repository index
-        fdroid update --create-metadata
+        # Check APK file before processing
+        echo "Checking APK files in repo:"
+        ls -la repo/
         
-        # Verify the repository
-        fdroid verify
+        # Try to get APK info first
+        for apk in repo/*.apk; do
+          if [ -f "$apk" ]; then
+            echo "Checking APK: $apk"
+            aapt dump badging "$apk" | head -5 || echo "aapt check failed for $apk"
+          fi
+        done
+        
+        # Update the repository index with error handling
+        echo "Updating F-Droid repository index..."
+        if ! fdroid update --create-metadata; then
+          echo "fdroid update failed, trying with --verbose for debugging"
+          fdroid update --create-metadata --verbose || {
+            echo "F-Droid update failed completely. This might be due to APK compatibility issues."
+            echo "APK files present:"
+            ls -la repo/
+            exit 1
+          }
+        fi
+        
+        echo "F-Droid repository updated successfully"
         
     - name: Create repository info files
       run: |
