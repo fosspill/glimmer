@@ -15,6 +15,33 @@ Its main purpose is to keep the game running in the background and provide helpf
 *   **World Map:** A handy map overlay to see where you are. 🗺️
     
 *   **Runs in the Background:** Keeps your game alive, even when you switch apps.
+
+
+## 📱 Installation
+
+### F-Droid Repository (Recommended)
+
+Add our custom F-Droid repository to get automatic updates:
+
+**Repository URL:** `https://fosspill.github.io/glimmer/fdroid`
+
+<p align="center">
+  <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://fosspill.github.io/glimmer/fdroid" alt="F-Droid Repository QR Code" />
+</p>
+
+**How to add:**
+1. Open F-Droid on your Android device
+2. Go to **Settings → Repositories** 
+3. Tap the **+** button
+4. Enter: `https://fosspill.github.io/glimmer/fdroid`
+
+Or scan the QR code above with F-Droid.
+
+### Direct APK Download
+
+You can also download APK files directly from our [GitHub Releases](https://github.com/fosspill/glimmer/releases/latest).
+
+[![Download APK](https://img.shields.io/github/v/release/fosspill/glimmer?label=Download%20APK&style=for-the-badge&logo=android&logoColor=white&color=3DDC84)](https://github.com/fosspill/glimmer/releases/latest)
     
 
 ## How the Magic Happens 🪄
@@ -58,3 +85,4 @@ Here's a quick look at what's currently working:
 *   The script communicates with native notifications as intended.
     
 *   The background service correctly keeps the app alive.
+

@@ -10,43 +10,43 @@ This is, for now, just some notes on what I would like to do, and what I do not 
 
 ## F-Droid Repository Implementation Plan
 
-### Phase 1: APK Build Automation
-- [ ] Create GitHub Action workflow for automated APK builds
-  - [ ] Setup Android SDK and build tools in CI
-  - [ ] Configure signing keys (release keystore) as GitHub secrets
-  - [ ] Build both debug and release APKs on git tags
-  - [ ] Upload APK artifacts to GitHub releases
+### Phase 1: APK Build Automation ✅ **COMPLETED**
+- [x] Create GitHub Action workflow for automated APK builds
+  - [x] Setup Android SDK and build tools in CI
+  - [x] Configure signing keys (release keystore) as GitHub secrets
+  - [x] Build both debug and release APKs on git tags
+  - [x] Upload APK artifacts to GitHub releases
 
-### Phase 2: F-Droid Metadata Setup
-- [ ] Create F-Droid metadata structure
-  - [ ] `metadata/io.glimmer.client.yml` - App metadata file
-  - [ ] Define app categories, description, changelog format
-  - [ ] Configure build recipes and dependencies
-  - [ ] Set up proper versioning scheme (using git tags)
+### Phase 2: F-Droid Metadata Setup ✅ **COMPLETED**
+- [x] Create F-Droid metadata structure
+  - [x] `metadata/io.glimmer.client.yml` - App metadata file
+  - [x] Define app categories, description, changelog format
+  - [x] Configure build recipes and dependencies
+  - [x] Set up proper versioning scheme (using git tags)
 
-### Phase 3: F-Droid Repository Hosting
-- [ ] Setup F-Droid repository infrastructure
-  - [ ] Create `fdroiddata` repository structure
-  - [ ] Configure F-Droid server tools (fdroidserver)
-  - [ ] Generate repository index and signing keys
-  - [ ] Host repository files via GitHub Pages
+### Phase 3: F-Droid Repository Hosting ✅ **COMPLETED**
+- [x] Setup F-Droid repository infrastructure
+  - [x] Create `fdroiddata` repository structure
+  - [x] Configure F-Droid server tools (fdroidserver)
+  - [x] Generate repository index and signing keys
+  - [x] Host repository files via GitHub Pages
 
-### Phase 4: Automated Repository Updates
-- [ ] Create GitHub Action for F-Droid repo maintenance
-  - [ ] Auto-update metadata on new releases
-  - [ ] Rebuild repository index when APKs are updated
-  - [ ] Deploy updated repo to GitHub Pages
-  - [ ] Validate APK signatures and metadata
+### Phase 4: Automated Repository Updates ✅ **COMPLETED**
+- [x] Create GitHub Action for F-Droid repo maintenance
+  - [x] Auto-update metadata on new releases
+  - [x] Rebuild repository index when APKs are updated
+  - [x] Deploy updated repo to GitHub Pages
+  - [x] Validate APK signatures and metadata
 
-### Phase 5: Documentation & Distribution
-- [ ] Create installation instructions
-  - [ ] How to add custom F-Droid repo URL
-  - [ ] Direct APK download links as fallback
+### Phase 5: Documentation & Distribution 🔄 **IN PROGRESS**
+- [x] Create installation instructions
+  - [x] How to add custom F-Droid repo URL
+  - [x] Direct APK download links as fallback
   - [ ] Update README with installation methods
-- [ ] Add F-Droid repo QR code and URL to README
-  - [ ] Generate QR code for easy mobile scanning
-  - [ ] Include both QR code image and clickable repo URL
-  - [ ] Add "Add to F-Droid" button/badge for easy access
+- [x] Add F-Droid repo QR code and URL to README
+  - [x] Generate QR code for easy mobile scanning
+  - [x] Include both QR code image and clickable repo URL
+  - [x] Add "Add to F-Droid" button/badge for easy access
 - [ ] Setup monitoring for build failures and repo health
 
 ## Code Refactoring Tasks

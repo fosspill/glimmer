@@ -36,3 +36,5 @@ CLAUDE.md
 *.jks
 *.jks.old
 *.p12
+
+.claude/
