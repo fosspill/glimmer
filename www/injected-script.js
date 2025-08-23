@@ -66,6 +66,71 @@ const Glimmer = {
         }
     },
 
+    PacketHandlers: {
+        1: function(payload) {
+            if (payload[0] === this.myEntityId) {
+                this.updateMyLocation(null, payload[1], payload[2]);
+            }
+        },
+
+        3: function(payload) {
+            if (payload[0] === this.myEntityId) {
+                const mapLevel = payload[7];
+                const x = payload[8];
+                const y = payload[9];
+                const maxHitpoints = payload[5];
+                const currentHitpoints = payload[6];
+                
+                this.updateMyLocation(mapLevel, x, y);
+                
+                if (maxHitpoints !== undefined && maxHitpoints !== null) {
+                    this.myMaxHealth = maxHitpoints;
+                }
+                if (currentHitpoints !== undefined && currentHitpoints !== null) {
+                    this.myCurrentHealth = currentHitpoints;
+                    this.checkHealthAlert();
+                }
+            }
+        },
+
+        8: function(payload) {
+            if (payload[1] === this.myEntityId) {
+                const damage = payload[2];
+                this.myCurrentHealth -= damage;
+                glimmerLog(`Took ${damage} damage. Current health: ${this.myCurrentHealth}`);
+                this.checkHealthAlert();
+            }
+        },
+
+        13: function(payload) {
+            if (payload && payload[0] === this.myEntityId) {
+                const idleAlertEnabled = this.settings && (this.settings.glimmer_idleAlert === "true" || this.settings.glimmer_idleAlert === true);
+                
+                if (idleAlertEnabled) {
+                    glimmerLog('Player entered idle state. Starting 30-second timer...');
+                    if (!this.idleTimer) {
+                        this.idleTimer = setTimeout(() => {
+                            this.notify("Glimmer: AFK Alert!", "You have been idle for 30 seconds.");
+                            this.idleTimer = null;
+                            glimmerLog('Idle alert notification sent.');
+                        }, 30000);
+                        glimmerLog('Idle timer started (30 seconds).');
+                    } else {
+                        glimmerLog('Idle timer already running, not starting new one.');
+                    }
+                }
+            }
+        },
+
+        91: function(payload) {
+            if (payload[1] === this.myEntityId) {
+                this.myCurrentHealth = payload[2];
+                glimmerLog(`Health restored. Current health: ${this.myCurrentHealth}`);
+                this.checkHealthAlert();
+            }
+        }
+    },
+
     handlePacket: function(actionId, payload) {
         if (payload && payload[0] === this.myEntityId && actionId !== 13) {
             if (this.idleTimer) {
@@ -75,74 +140,9 @@ const Glimmer = {
             }
         }
 
-        switch (actionId) {
-            case 1:
-                if (payload[0] === this.myEntityId) {
-                    this.updateMyLocation(null, payload[1], payload[2]);
-                }
-                break;
-
-            case 3:
-                 if (payload[0] === this.myEntityId) {
-                    // PlayerEnteredChunk: Extract position, map level, and health
-                    const mapLevel = payload[7];
-                    const x = payload[8];
-                    const y = payload[9];
-                    const maxHitpoints = payload[5]; // HitpointsLevel
-                    const currentHitpoints = payload[6]; // CurrentHitpointsLevel
-                    
-                    // Update position and map level
-                    this.updateMyLocation(mapLevel, x, y);
-                    
-                    // Update health information if available
-                    if (maxHitpoints !== undefined && maxHitpoints !== null) {
-                        this.myMaxHealth = maxHitpoints;
-                    }
-                    if (currentHitpoints !== undefined && currentHitpoints !== null) {
-                        this.myCurrentHealth = currentHitpoints;
-                        this.checkHealthAlert();
-                    }
-                }
-                break;
-
-            case 8:
-                if (payload[1] === this.myEntityId) {
-                    const damage = payload[2];
-                    this.myCurrentHealth -= damage;
-                    glimmerLog(`Took ${damage} damage. Current health: ${this.myCurrentHealth}`);
-                    this.checkHealthAlert();
-                }
-                break;
-
-            case 13:
-                // Only process idle packets for our own entity
-                if (payload && payload[0] === this.myEntityId) {
-                    const idleAlertEnabled = this.settings && (this.settings.glimmer_idleAlert === "true" || this.settings.glimmer_idleAlert === true);
-                    
-                    if (idleAlertEnabled) {
-                        glimmerLog('Player entered idle state. Starting 30-second timer...');
-                        if (!this.idleTimer) {
-                            this.idleTimer = setTimeout(() => {
-                                this.notify("Glimmer: AFK Alert!", "You have been idle for 30 seconds.");
-                                this.idleTimer = null;
-                                glimmerLog('Idle alert notification sent.');
-                            }, 30000);
-                            glimmerLog('Idle timer started (30 seconds).');
-                        } else {
-                            glimmerLog('Idle timer already running, not starting new one.');
-                        }
-                    }
-                }
-                // Silently ignore idle packets for other entities
-                break;
-
-            case 91:
-                if (payload[1] === this.myEntityId) {
-                    this.myCurrentHealth = payload[2];
-                    glimmerLog(`Health restored. Current health: ${this.myCurrentHealth}`);
-                    this.checkHealthAlert();
-                }
-                break;
+        const handler = this.PacketHandlers[actionId];
+        if (handler) {
+            handler.call(this, payload);
         }
     },
 
@@ -392,39 +392,13 @@ const Glimmer = {
                             glimmerLog('[XHR] Socket.IO polling response: ' + this.responseText.substring(0, 200));
                         }
 
-                        if (this.responseText.includes('42["16"')) {
-                            glimmerLog('>>>>>>>>>> LOGGEDIN PACKET (16) CAPTURED VIA XHR! <<<<<<<<<<');
-                            try {
-                                const startIndex = this.responseText.indexOf('42[');
-                                if (startIndex === -1) return;
-
-                                const messageContent = JSON.parse(this.responseText.substring(startIndex + 2));
-                                const loginPayload = messageContent[1];
-
-                                Glimmer.NetworkMonitor.processLogin(loginPayload, "XHR");
-
-                            } catch (e) {
-                                glimmerLog('Error parsing LoggedIn packet via XHR: ' + e);
-                            }
-                        }
-                        
-                        // Also process other game packets via XHR polling
+                        // Process all game packets via unified message router
                         try {
                             const messages = this.responseText.split('\n');
                             for (const message of messages) {
-                                if (message.startsWith('42[') && !message.includes('"16"')) {
-                                    const messageContent = JSON.parse(message.substring(2));
-                                    const actionIdString = messageContent[0];
-                                    const payload = messageContent[1];
-                                    glimmerLog('[XHR] Processing packet via polling: ' + actionIdString);
-                                    
-                                    if (actionIdString === "0" && Array.isArray(payload)) {
-                                        payload.forEach(update => {
-                                            Glimmer.handlePacket(update[0], update[1]);
-                                        });
-                                    } else {
-                                        Glimmer.handlePacket(parseInt(actionIdString, 10), payload);
-                                    }
+                                if (message.startsWith('42[')) {
+                                    glimmerLog('[XHR] Processing packet via polling: ' + message.substring(0, 50));
+                                    Glimmer.NetworkMonitor.processMessage(message, "XHR");
                                 }
                             }
                         } catch (e) {
@@ -435,76 +409,44 @@ const Glimmer = {
                 return xhr;
             };
 
-            const OriginalWebSocket = window.WebSocket;
-            window.WebSocket = new Proxy(OriginalWebSocket, {
-                construct: (target, args) => {
-                    glimmerLog('[WSMonitor] *** WebSocket CONSTRUCTOR CALLED *** URL: ' + args[0]);
-                    glimmerLog('[WSMonitor] WebSocket protocols: ' + JSON.stringify(args[1] || 'none'));
-                    
-                    try {
-                        const wsInstance = Reflect.construct(target, args);
-                        glimmerLog('[WSMonitor] WebSocket instance created successfully');
-                        
-                        wsInstance.addEventListener('open', (event) => {
-                            glimmerLog('[WSMonitor] WebSocket OPENED: ' + wsInstance.url);
-                        });
-                        
-                        wsInstance.addEventListener('close', (event) => {
-                            glimmerLog('[WSMonitor] WebSocket CLOSED: ' + wsInstance.url + ' Code: ' + event.code + ' Reason: ' + event.reason);
-                        });
-                        
-                        wsInstance.addEventListener('error', (event) => {
-                            glimmerLog('[WSMonitor] WebSocket ERROR: ' + wsInstance.url);
-                        });
-                        
-                        wsInstance.addEventListener('message', (event) => {
-                            glimmerLog('[WSMonitor] WebSocket MESSAGE received from: ' + wsInstance.url);
-                            Glimmer.NetworkMonitor.handleMessage(event);
-                        });
-                        
-                        glimmerLog('[WSMonitor] WebSocket ready state: ' + wsInstance.readyState);
-                        return wsInstance;
-                    } catch (error) {
-                        glimmerLog('[WSMonitor] WebSocket construction FAILED: ' + error.toString());
-                        throw error;
-                    }
-                }
-            });
 
             this.isIntercepted = true;
         },
 
-        handleMessage: function(event) {
-            const data = typeof event.data === 'string' ? event.data : null;
+        processMessage: function(data, source) {
+            if (!data || !data.startsWith('42')) return;
 
             try {
-                if (data && data.startsWith('42')) {
-                    const messageContent = JSON.parse(data.substring(2));
-                    const actionIdString = messageContent[0];
-                    const payload = messageContent[1];
+                const messageContent = JSON.parse(data.substring(2));
+                const actionIdString = messageContent[0];
+                const payload = messageContent[1];
 
-                    if (actionIdString === "16") {
-                        glimmerLog('>>>>>>>>>> LOGGEDIN PACKET (16) CAPTURED VIA WS! <<<<<<<<<<');
-                        this.processLogin(payload, "WS");
-                        return;
-                    }
+                if (actionIdString === "16") {
+                    glimmerLog(`>>>>>>>>>> LOGGEDIN PACKET (16) CAPTURED VIA ${source}! <<<<<<<<<<`);
+                    this.processLogin(payload, source);
+                    return;
+                }
 
-                    if (actionIdString === "pm") {
-                        this.handlePM(payload);
-                        return;
-                    }
+                if (actionIdString === "pm") {
+                    this.handlePM(payload);
+                    return;
+                }
 
-                    if (actionIdString === "0" && Array.isArray(payload)) {
-                        payload.forEach(update => {
-                            Glimmer.handlePacket(update[0], update[1]);
-                        });
-                    } else {
-                        Glimmer.handlePacket(parseInt(actionIdString, 10), payload);
-                    }
+                if (actionIdString === "0" && Array.isArray(payload)) {
+                    payload.forEach(update => {
+                        Glimmer.handlePacket(update[0], update[1]);
+                    });
+                } else {
+                    Glimmer.handlePacket(parseInt(actionIdString, 10), payload);
                 }
             } catch (e) {
                 // Suppress errors for non-game packets
             }
+        },
+
+        handleMessage: function(event) {
+            const data = typeof event.data === 'string' ? event.data : null;
+            this.processMessage(data, "WS");
         },
 
         handlePM: function(pmData) {
@@ -601,27 +543,23 @@ window.WebSocket = new Proxy(originalWebSocket, {
             });
             
             wsInstance.addEventListener('message', (event) => {
-                // Process the message using existing handler
-                if (Glimmer && Glimmer.NetworkMonitor && Glimmer.NetworkMonitor.handleMessage) {
-                    Glimmer.NetworkMonitor.handleMessage(event);
-                } else {
-                    // Glimmer not initialized yet, try to handle manually
+                // Process the message using unified router
+                if (Glimmer && Glimmer.NetworkMonitor && Glimmer.NetworkMonitor.processMessage) {
                     const data = typeof event.data === 'string' ? event.data : null;
-                    if (data && data.startsWith('42')) {
+                    Glimmer.NetworkMonitor.processMessage(data, "WS");
+                } else {
+                    // Glimmer not initialized yet, handle login packets with delay
+                    const data = typeof event.data === 'string' ? event.data : null;
+                    if (data && data.startsWith('42["16"')) {
+                        glimmerLog('>>>>>>>>>> EARLY LOGGEDIN PACKET (16) CAPTURED! <<<<<<<<<<');
                         try {
                             const messageContent = JSON.parse(data.substring(2));
-                            const actionIdString = messageContent[0];
                             const payload = messageContent[1];
-                            
-                            if (actionIdString === "16") {
-                                glimmerLog('>>>>>>>>>> LOGGEDIN PACKET (16) CAPTURED VIA WS! <<<<<<<<<<');
-                                // Process login later when Glimmer is ready
-                                setTimeout(() => {
-                                    if (Glimmer && Glimmer.NetworkMonitor) {
-                                        Glimmer.NetworkMonitor.processLogin(payload, "WS");
-                                    }
-                                }, 1000);
-                            }
+                            setTimeout(() => {
+                                if (Glimmer && Glimmer.NetworkMonitor) {
+                                    Glimmer.NetworkMonitor.processLogin(payload, "WS");
+                                }
+                            }, 1000);
                         } catch (e) {
                             // Suppress errors for non-game packets
                         }
