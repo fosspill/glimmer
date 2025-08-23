@@ -68,8 +68,32 @@ const Glimmer = {
 
     PacketHandlers: {
         1: function(payload) {
-            if (payload[0] === this.myEntityId) {
-                this.updateMyLocation(null, payload[1], payload[2]);
+            const actionType = payload[0];
+            const actionData = payload[1];
+            
+            if (actionType === 10) {
+                const [x, y] = actionData;
+                this.updateMyLocation(null, x, y);
+                glimmerLog(`Movement action: X=${x}, Y=${y}`);
+            } else if (actionType === 16) {
+                const entityId = actionData[0];
+                if (entityId === this.myEntityId) {
+                    const idleAlertEnabled = this.settings && (this.settings.glimmer_idleAlert === "true" || this.settings.glimmer_idleAlert === true);
+                    
+                    if (idleAlertEnabled) {
+                        glimmerLog('Player entered idle state. Starting 30-second timer...');
+                        if (!this.idleTimer) {
+                            this.idleTimer = setTimeout(() => {
+                                this.notify("Glimmer: AFK Alert!", "You have been idle for 30 seconds.");
+                                this.idleTimer = null;
+                                glimmerLog('Idle alert notification sent.');
+                            }, 30000);
+                            glimmerLog('Idle timer started (30 seconds).');
+                        } else {
+                            glimmerLog('Idle timer already running, not starting new one.');
+                        }
+                    }
+                }
             }
         },
 
@@ -102,25 +126,6 @@ const Glimmer = {
             }
         },
 
-        13: function(payload) {
-            if (payload && payload[0] === this.myEntityId) {
-                const idleAlertEnabled = this.settings && (this.settings.glimmer_idleAlert === "true" || this.settings.glimmer_idleAlert === true);
-                
-                if (idleAlertEnabled) {
-                    glimmerLog('Player entered idle state. Starting 30-second timer...');
-                    if (!this.idleTimer) {
-                        this.idleTimer = setTimeout(() => {
-                            this.notify("Glimmer: AFK Alert!", "You have been idle for 30 seconds.");
-                            this.idleTimer = null;
-                            glimmerLog('Idle alert notification sent.');
-                        }, 30000);
-                        glimmerLog('Idle timer started (30 seconds).');
-                    } else {
-                        glimmerLog('Idle timer already running, not starting new one.');
-                    }
-                }
-            }
-        },
 
         91: function(payload) {
             if (payload[1] === this.myEntityId) {
@@ -372,8 +377,17 @@ const Glimmer = {
     },
 
     NetworkMonitor: {
+        loginTimeout: null,
+        
         start: function() {
             if (this.isIntercepted) return;
+            
+            this.loginTimeout = setTimeout(() => {
+                if (!Glimmer.myEntityId) {
+                    Glimmer.notify("Glimmer Error", "Login packet not detected. Game may have updated - Glimmer features disabled.");
+                    glimmerLog("ERROR: No login packet detected within 15 seconds of WebSocket activity");
+                }
+            }, 15000);
             
             // Set up Socket.IO interception with multiple strategies
             let ioIntercepted = false;
@@ -398,7 +412,29 @@ const Glimmer = {
                             for (const message of messages) {
                                 if (message.startsWith('42[')) {
                                     glimmerLog('[XHR] Processing packet via polling: ' + message.substring(0, 50));
-                                    Glimmer.NetworkMonitor.processMessage(message, "XHR");
+                                    
+                                    // Extract just the JSON part for processing
+                                    const jsonPart = message.substring(2); // Remove "42" prefix
+                                    try {
+                                        const messageContent = JSON.parse(jsonPart);
+                                        const actionIdString = messageContent[0];
+                                        const payload = messageContent[1];
+
+                                        if (actionIdString === "15") {
+                                            glimmerLog(`>>>>>>>>>> LOGGEDIN PACKET (15) CAPTURED VIA XHR! <<<<<<<<<<`);
+                                            Glimmer.NetworkMonitor.processLogin(payload, "XHR");
+                                        } else if (actionIdString === "pm") {
+                                            Glimmer.NetworkMonitor.handlePM(payload);
+                                        } else if (actionIdString === "0" && Array.isArray(payload)) {
+                                            payload.forEach(update => {
+                                                Glimmer.handlePacket(update[0], update[1]);
+                                            });
+                                        } else {
+                                            Glimmer.handlePacket(parseInt(actionIdString, 10), payload);
+                                        }
+                                    } catch (parseError) {
+                                        // Ignore parsing errors for non-game messages
+                                    }
                                 }
                             }
                         } catch (e) {
@@ -421,8 +457,8 @@ const Glimmer = {
                 const actionIdString = messageContent[0];
                 const payload = messageContent[1];
 
-                if (actionIdString === "16") {
-                    glimmerLog(`>>>>>>>>>> LOGGEDIN PACKET (16) CAPTURED VIA ${source}! <<<<<<<<<<`);
+                if (actionIdString === "15") {
+                    glimmerLog(`>>>>>>>>>> LOGGEDIN PACKET (15) CAPTURED VIA ${source}! <<<<<<<<<<`);
                     this.processLogin(payload, source);
                     return;
                 }
@@ -444,10 +480,6 @@ const Glimmer = {
             }
         },
 
-        handleMessage: function(event) {
-            const data = typeof event.data === 'string' ? event.data : null;
-            this.processMessage(data, "WS");
-        },
 
         handlePM: function(pmData) {
             // Check if PM alerts are enabled
@@ -475,15 +507,36 @@ const Glimmer = {
         },
 
         processLogin: function(loginPayload, source) {
+            if (this.loginTimeout) {
+                clearTimeout(this.loginTimeout);
+                this.loginTimeout = null;
+            }
+            
             Glimmer.myEntityId = loginPayload[0];
             glimmerLog(`EntityID set to: ${Glimmer.myEntityId} (via ${source})`);
 
             Glimmer.updateMyLocation(loginPayload[4], loginPayload[5], loginPayload[6]);
 
-            const initialHp = loginPayload[27];
-            Glimmer.myMaxHealth = initialHp;
-            Glimmer.myCurrentHealth = initialHp;
-            glimmerLog(`Health initialized. Max: ${Glimmer.myMaxHealth}, Current: ${Glimmer.myCurrentHealth}`);
+            const hpLevel = loginPayload[48];
+            glimmerLog(`HP extraction debug - Position 48 value: ${hpLevel}, Type: ${typeof hpLevel}`);
+            if (hpLevel && typeof hpLevel === 'number' && hpLevel > 0) {
+                Glimmer.myMaxHealth = hpLevel;
+                Glimmer.myCurrentHealth = hpLevel;
+                glimmerLog(`Health initialized. Max: ${Glimmer.myMaxHealth}, Current: ${Glimmer.myCurrentHealth}`);
+            } else {
+                glimmerLog(`Failed to extract HP from position 48. Searching in payload...`);
+                for (let i = 40; i < 60; i++) {
+                    if (typeof loginPayload[i] === 'number' && loginPayload[i] >= 10 && loginPayload[i] <= 100) {
+                        glimmerLog(`Found potential HP at position ${i}: ${loginPayload[i]}`);
+                        if (i === 47 && loginPayload[i] === 15) {
+                            Glimmer.myMaxHealth = loginPayload[i];
+                            Glimmer.myCurrentHealth = loginPayload[i];
+                            glimmerLog(`Health initialized from position ${i}. Max: ${Glimmer.myMaxHealth}, Current: ${Glimmer.myCurrentHealth}`);
+                            break;
+                        }
+                    }
+                }
+            }
 
             Glimmer.notify("Glimmer Connected", "Now monitoring your session.");
         },
@@ -516,6 +569,13 @@ const Glimmer = {
 
         this.NetworkMonitor.start();
         this.WorldMap.init();
+        
+        // Check for early login data captured before Glimmer was ready
+        if (window.glimmerEarlyLogin) {
+            glimmerLog('Processing early login data from initialization');
+            this.NetworkMonitor.processLogin(window.glimmerEarlyLogin.payload, window.glimmerEarlyLogin.source);
+            delete window.glimmerEarlyLogin;
+        }
     }
 };
 
@@ -531,7 +591,7 @@ window.WebSocket = new Proxy(originalWebSocket, {
             const wsInstance = Reflect.construct(target, args);
             
             wsInstance.addEventListener('open', (event) => {
-                // WebSocket connection established
+                glimmerLog('WebSocket connection established to: ' + args[0]);
             });
             
             wsInstance.addEventListener('close', (event) => {
@@ -543,26 +603,41 @@ window.WebSocket = new Proxy(originalWebSocket, {
             });
             
             wsInstance.addEventListener('message', (event) => {
-                // Process the message using unified router
-                if (Glimmer && Glimmer.NetworkMonitor && Glimmer.NetworkMonitor.processMessage) {
-                    const data = typeof event.data === 'string' ? event.data : null;
-                    Glimmer.NetworkMonitor.processMessage(data, "WS");
-                } else {
-                    // Glimmer not initialized yet, handle login packets with delay
-                    const data = typeof event.data === 'string' ? event.data : null;
-                    if (data && data.startsWith('42["16"')) {
-                        glimmerLog('>>>>>>>>>> EARLY LOGGEDIN PACKET (16) CAPTURED! <<<<<<<<<<');
-                        try {
-                            const messageContent = JSON.parse(data.substring(2));
-                            const payload = messageContent[1];
-                            setTimeout(() => {
-                                if (Glimmer && Glimmer.NetworkMonitor) {
-                                    Glimmer.NetworkMonitor.processLogin(payload, "WS");
-                                }
-                            }, 1000);
-                        } catch (e) {
-                            // Suppress errors for non-game packets
+                const data = typeof event.data === 'string' ? event.data : null;
+                
+                if (data && data.startsWith('42[')) {
+                    glimmerLog('[WS] Processing packet: ' + data.substring(0, 50));
+                    
+                    // Process immediately - don't wait for Glimmer to be ready
+                    const jsonPart = data.substring(2); // Remove "42" prefix
+                    try {
+                        const messageContent = JSON.parse(jsonPart);
+                        const actionIdString = messageContent[0];
+                        const payload = messageContent[1];
+
+                        if (actionIdString === "15") {
+                            glimmerLog(`>>>>>>>>>> LOGGEDIN PACKET (15) CAPTURED VIA WS! <<<<<<<<<<`);
+                            // Store login data globally for when Glimmer is ready
+                            window.glimmerEarlyLogin = { payload, source: "WS" };
+                            
+                            // Try immediate processing if Glimmer exists
+                            if (Glimmer && Glimmer.NetworkMonitor) {
+                                Glimmer.NetworkMonitor.processLogin(payload, "WS");
+                            }
+                        } else if (Glimmer && Glimmer.NetworkMonitor) {
+                            // Process other packets only if Glimmer is ready
+                            if (actionIdString === "pm") {
+                                Glimmer.NetworkMonitor.handlePM(payload);
+                            } else if (actionIdString === "0" && Array.isArray(payload)) {
+                                payload.forEach(update => {
+                                    Glimmer.handlePacket(update[0], update[1]);
+                                });
+                            } else {
+                                Glimmer.handlePacket(parseInt(actionIdString, 10), payload);
+                            }
                         }
+                    } catch (parseError) {
+                        glimmerLog('WS parse error: ' + parseError.message);
                     }
                 }
             });
