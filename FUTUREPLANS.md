@@ -48,8 +48,8 @@ This is, for now, just some notes on what I would like to do, and what I do not 
 - [ ] **Settings Validation Cleanup** - Create centralized settings helper to replace scattered validation logic
 - [x] **Mixed Message Handling** - Unify message processing into single entry point
 - [x] **Giant handlePacket Switch** - Extract packet handlers into separate modules
-- [ ] **WorldMap Coupling** - Decouple WorldMap from main Glimmer object
-- [ ] **Initialization Race Conditions** - Simplify multiple initialization points
+- [ ] **WorldMap Coupling** - Decouple WorldMap from main Glimmer object - DROPPED
+- [ ] **Initialization Race Conditions** - Simplify multiple initialization points - DROPPED (premature optimization)
 
 ### Proposed Refactoring Structure
 - [ ] **SettingsHelper** - Centralized settings validation (`isEnabled(setting)`)
@@ -60,8 +60,13 @@ This is, for now, just some notes on what I would like to do, and what I do not 
   - [x] Idle handler (packet 13)
   - [x] Health restore handler (packet 91)
   - [x] PM handler (handled in NetworkMonitor)
+  - [ ] Death handler (packet 50) - Critical death alerts
+  - [ ] Level up handler (packet 39) - Level increase notifications
+  - [ ] Combat exp handler (packet 7) - Better idle detection during combat
+  - [ ] Public chat handler (packet 12) - Local chat monitoring with keywords
+  - [ ] Inventory change handler (packet 102/103) - Loot/item notifications
 - [x] **Unified Message Processing** - Single router for WebSocket/XHR messages
-- [ ] **Separation of Concerns** - Split into focused modules:
+- [ ] **Separation of Concerns** - Split into focused modules - DROPPED (over-engineering):
   - [ ] GameState (position, health, entity tracking)
   - [ ] AlertManager (all notifications)
   - [ ] NetworkManager (network interception)
@@ -70,7 +75,7 @@ This is, for now, just some notes on what I would like to do, and what I do not 
 
 ### Progress Tracking
 - [ ] Phase 1: Settings Helper implementation
-- [ ] Phase 2: Extract packet handlers
-- [ ] Phase 3: Unify message processing
-- [ ] Phase 4: Separate concerns into modules
-- [ ] Phase 5: Remove redundant code paths
+- [x] Phase 2: Extract packet handlers ✅ COMPLETED
+- [x] Phase 3: Unify message processing ✅ COMPLETED  
+- [x] Phase 4: Remove redundant code paths ✅ COMPLETED
+- [ ] Phase 5: Add new packet handlers (death, level up, combat exp, chat, inventory)
