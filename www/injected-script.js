@@ -449,36 +449,6 @@ const Glimmer = {
             this.isIntercepted = true;
         },
 
-        processMessage: function(data, source) {
-            if (!data || !data.startsWith('42')) return;
-
-            try {
-                const messageContent = JSON.parse(data.substring(2));
-                const actionIdString = messageContent[0];
-                const payload = messageContent[1];
-
-                if (actionIdString === "15") {
-                    glimmerLog(`>>>>>>>>>> LOGGEDIN PACKET (15) CAPTURED VIA ${source}! <<<<<<<<<<`);
-                    this.processLogin(payload, source);
-                    return;
-                }
-
-                if (actionIdString === "pm") {
-                    this.handlePM(payload);
-                    return;
-                }
-
-                if (actionIdString === "0" && Array.isArray(payload)) {
-                    payload.forEach(update => {
-                        Glimmer.handlePacket(update[0], update[1]);
-                    });
-                } else {
-                    Glimmer.handlePacket(parseInt(actionIdString, 10), payload);
-                }
-            } catch (e) {
-                // Suppress errors for non-game packets
-            }
-        },
 
 
         handlePM: function(pmData) {
