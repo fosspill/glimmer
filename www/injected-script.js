@@ -77,8 +77,10 @@ const Glimmer = {
                 glimmerLog(`Movement action: X=${x}, Y=${y}`);
             } else if (actionType === 16) {
                 const entityId = actionData[0];
+                glimmerLog(`Idle action detected for entity ${entityId}, myEntityId: ${this.myEntityId}`);
                 if (entityId === this.myEntityId) {
                     const idleAlertEnabled = this.settings && (this.settings.glimmer_idleAlert === "true" || this.settings.glimmer_idleAlert === true);
+                    glimmerLog(`Idle alert enabled: ${idleAlertEnabled}`);
                     
                     if (idleAlertEnabled) {
                         glimmerLog('Player entered idle state. Starting 30-second timer...');
@@ -376,18 +378,9 @@ const Glimmer = {
         }
     },
 
-    NetworkMonitor: {
-        loginTimeout: null,
-        
+    NetworkMonitor: {        
         start: function() {
             if (this.isIntercepted) return;
-            
-            this.loginTimeout = setTimeout(() => {
-                if (!Glimmer.myEntityId) {
-                    Glimmer.notify("Glimmer Error", "Login packet not detected. Game may have updated - Glimmer features disabled.");
-                    glimmerLog("ERROR: No login packet detected within 15 seconds of WebSocket activity");
-                }
-            }, 15000);
             
             // Set up Socket.IO interception with multiple strategies
             let ioIntercepted = false;
@@ -477,11 +470,6 @@ const Glimmer = {
         },
 
         processLogin: function(loginPayload, source) {
-            if (this.loginTimeout) {
-                clearTimeout(this.loginTimeout);
-                this.loginTimeout = null;
-            }
-            
             Glimmer.myEntityId = loginPayload[0];
             glimmerLog(`EntityID set to: ${Glimmer.myEntityId} (via ${source})`);
 
@@ -498,12 +486,11 @@ const Glimmer = {
                 for (let i = 40; i < 60; i++) {
                     if (typeof loginPayload[i] === 'number' && loginPayload[i] >= 10 && loginPayload[i] <= 100) {
                         glimmerLog(`Found potential HP at position ${i}: ${loginPayload[i]}`);
-                        if (i === 47 && loginPayload[i] === 15) {
-                            Glimmer.myMaxHealth = loginPayload[i];
-                            Glimmer.myCurrentHealth = loginPayload[i];
-                            glimmerLog(`Health initialized from position ${i}. Max: ${Glimmer.myMaxHealth}, Current: ${Glimmer.myCurrentHealth}`);
-                            break;
-                        }
+                        // Use the first reasonable HP value found
+                        Glimmer.myMaxHealth = loginPayload[i];
+                        Glimmer.myCurrentHealth = loginPayload[i];
+                        glimmerLog(`Health initialized from position ${i}. Max: ${Glimmer.myMaxHealth}, Current: ${Glimmer.myCurrentHealth}`);
+                        break;
                     }
                 }
             }
@@ -572,11 +559,36 @@ window.WebSocket = new Proxy(originalWebSocket, {
                 glimmerLog('WebSocket connection error');
             });
             
+            // Intercept outgoing messages (type "1" packets)
+            const originalSend = wsInstance.send;
+            wsInstance.send = function(data) {
+                if (typeof data === 'string' && data.startsWith('42[')) {
+                    glimmerLog('[WS-OUT] Sending packet: ' + data.substring(0, 50));
+                    
+                    try {
+                        const jsonPart = data.substring(2);
+                        const messageContent = JSON.parse(jsonPart);
+                        const actionIdString = messageContent[0];
+                        const payload = messageContent[1];
+
+                        if (actionIdString === "1" && Array.isArray(payload) && payload.length >= 2 && Glimmer?.handlePacket) {
+                            // Type "1" outgoing packets: [actionType, actionData]
+                            glimmerLog(`[WS-OUT] Type 1 action ${payload[0]} detected`);
+                            Glimmer.handlePacket(payload[0], payload[1]);
+                        }
+                    } catch (parseError) {
+                        // Ignore parsing errors
+                    }
+                }
+                
+                return originalSend.call(this, data);
+            };
+            
             wsInstance.addEventListener('message', (event) => {
                 const data = typeof event.data === 'string' ? event.data : null;
                 
                 if (data && data.startsWith('42[')) {
-                    glimmerLog('[WS] Processing packet: ' + data.substring(0, 50));
+                    glimmerLog('[WS-IN] Processing packet: ' + data.substring(0, 50));
                     
                     // Process immediately - don't wait for Glimmer to be ready
                     const jsonPart = data.substring(2); // Remove "42" prefix
@@ -594,17 +606,17 @@ window.WebSocket = new Proxy(originalWebSocket, {
                             if (Glimmer && Glimmer.NetworkMonitor) {
                                 Glimmer.NetworkMonitor.processLogin(payload, "WS");
                             }
-                        } else if (Glimmer && Glimmer.NetworkMonitor) {
-                            // Process other packets only if Glimmer is ready
-                            if (actionIdString === "pm") {
-                                Glimmer.NetworkMonitor.handlePM(payload);
-                            } else if (actionIdString === "0" && Array.isArray(payload)) {
-                                payload.forEach(update => {
-                                    Glimmer.handlePacket(update[0], update[1]);
-                                });
-                            } else {
-                                Glimmer.handlePacket(parseInt(actionIdString, 10), payload);
-                            }
+                        } else if (actionIdString === "pm" && Glimmer?.NetworkMonitor) {
+                            Glimmer.NetworkMonitor.handlePM(payload);
+                        } else if (actionIdString === "0" && Array.isArray(payload) && Glimmer?.handlePacket) {
+                            payload.forEach(update => {
+                                Glimmer.handlePacket(update[0], update[1]);
+                            });
+                        } else if (actionIdString === "1" && Array.isArray(payload) && payload.length >= 2 && Glimmer?.handlePacket) {
+                            // Type "1" packets: [actionType, actionData] - extract the real action
+                            Glimmer.handlePacket(payload[0], payload[1]);
+                        } else if (Glimmer?.handlePacket) {
+                            Glimmer.handlePacket(parseInt(actionIdString, 10), payload);
                         }
                     } catch (parseError) {
                         glimmerLog('WS parse error: ' + parseError.message);
